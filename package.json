@@ -1,0 +1,29 @@
+{
+  "name": "roomlisting",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server-chotot.js",
+    "start:chotot": "node server-chotot.js",
+    "fetch:chotot": "node fetchChotot.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "fs": "^0.0.1-security",
+    "fs-extra": "^11.3.0",
+    "multer": "^2.0.2",
+    "node-cron": "^3.0.3",
+    "path": "^0.12.7"
+  },
+  "type": "module",
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}

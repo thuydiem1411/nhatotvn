@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Danh sách sản phẩm</title>
+    <!-- Material Design Icons CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font/css/materialdesignicons.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+    <!-- Scrollable modal -->
+    <div class="modal modal-xl fade" id="exampleModalScrollable" tabindex="-1"
+        aria-labelledby="exampleModalScrollableTitle" style="display: none;" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="exampleModalScrollableTitle">Chọn ảnh để chia sẻ</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="share-list-room">Share</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="m-4">
+        <div class="d-flex justify-content-center align-items-center">
+            <span>
+                <i class="mdi mdi-download fs-6 text-info"
+                    style="cursor: pointer;" data-sub-action="download-data"
+                    title="Download Data"></i>
+            </span>
+            <h1 class="text-center">Danh sách phòng</h1>
+            <sup class="text-center" id="total-rooms"></sup>
+            <span><i class="mdi mdi-share fs-6 text-info text-danger"
+                    style="color: #ff0000 !important; cursor: pointer;" data-sub-action="share-list-room"
+                    title="Share"></i></span>
+        </div>
+
+        <!-- Bộ lọc -->
+        <form id="filterForm">
+            <div class="row">
+                <div class="col-3 mt-2">
+                    <select id="district" name="district_id"
+                        class="form-select form-select-sm text-color-dark-blue form-select">
+                        <option value="">Chọn Quận/Huyện</option>
+                    </select>
+                </div>
+
+                <div class="col-3 mt-2">
+                    <select id="ward" name="ward_id" disabled
+                        class="form-select form-select-sm text-color-dark-blue form-select">
+                        <option value="">Chọn Phường/Xã</option>
+                    </select>
+                </div>
+
+                <div class="col-3 mt-2">
+                    <select id="price-room" name="price-room"
+                        class="form-select form-select-sm text-color-dark-blue form-select">
+                        <option value="">Chọn giá</option>
+                        <option value="1">&lt;= 2 triệu</option>
+                        <option value="2">2 - 3 triệu</option>
+                        <option value="3">3 - 4 triệu</option>
+                        <option value="4">4 - 5 triệu</option>
+                        <option value="5">5 - 6 triệu</option>
+                        <option value="6">6 - 8 triệu</option>
+                        <option value="7">&gt;= 8 triệu</option>
+                    </select>
+                </div>
+
+                <div class="col-3 mt-2">
+                    <select id="sort-by" name="sort-by" tabindex="-1" aria-hidden="true"
+                        class="form-select form-select-sm text-color-dark-blue form-select">
+                        <option value="1" selected="selected">Mới nhất</option>
+                        <option value="3">Giá tăng dần</option>
+                        <option value="4">Giá giảm dần</option>
+                        <option value="5">Lượt xem nhiều</option>
+                        <option value="6">Bán chạy nhất</option>
+                    </select>
+                </div>
+
+                <div class="col-6 mt-2">
+                    <input class="form-control form-control-sm text-color-dark-blue" type="text"
+                        id="input-search" name="input-search" autocomplete="off" key-up-event="" placeholder="Tìm kiếm">
+                </div>
+
+                <div class="col-6 mt-2">
+                    <!-- Checkbox show soft delete -->
+                    <input type="checkbox" id="show-soft-delete" name="show-soft-delete" value="1">
+                </div>
+            </div>
+            <button class="btn btn-primary my-2" type="button" data-bs-toggle="collapse" data-bs-target="#filter-furniture"
+                aria-expanded="false" aria-controls="collapseExample">
+                Filter nội thất
+            </button>
+
+            <!-- Nội thất phòng -->
+            <div class="collapse" id="filter-furniture">
+                <button type="button" id="resetFilters" class="btn btn-secondary">Reset Filter</button>
+                <div class="row">
+                    <div class="col-12 mb-2 ">
+                        <div class="row ">
+                            <div class="col-6">
+                                <div class="row">
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Loại phòng </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="room-info-cooling-type" name="room-info-cooling-type">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Phòng">Phòng</option>
+                                            <option value="Giường Nam">Giường Nam</option>
+                                            <option value="Giường Nữ">Giường Nữ</option>
+                                            <option value="Phòng Studio">Phòng Studio</option>
+                                            <option value="1 Phòng ngủ">1 Phòng ngủ</option>
+                                            <option value="2 Phòng ngủ">2 Phòng ngủ</option>
+                                            <option value="3 Phòng ngủ">3 Phòng ngủ</option>
+                                            <option value="Suite 1">Suite 1</option>
+                                            <option value="Superior">Superior</option>
+                                            <option value="Studio Special">Studio Special</option>
+                                            <option value="Mặt bằng">Mặt bằng</option>
+                                            <option value="Penthouse">Penthouse</option>
+                                            <option value="Duplex">Duplex</option>
+                                            <option value="Sleepbox">Sleepbox</option>
+                                            <option value="Standard">Standard</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Vị trí </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="room-info-location" name="room-info-location">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="HAM">Hầm</option>
+                                            <option value="TRET">Trệt</option>
+                                            <option value="LUNG">Tầng lửng</option>
+                                            <option value="LAU1">Lầu 1</option>
+                                            <option value="LAU2">Lầu 2</option>
+                                            <option value="LAU3">Lầu 3</option>
+                                            <option value="LAU4">Lầu 4</option>
+                                            <option value="LAU5">Lầu 5</option>
+                                            <option value="LAU6">Lầu 6</option>
+                                            <option value="LAU7">Lầu 7</option>
+                                            <option value="LAU8">Lầu 8</option>
+                                            <option value="LAU9">Lầu 9</option>
+                                            <option value="LAU10">Lầu 10</option>
+                                            <option value="LAU11">Lầu 11</option>
+                                            <option value="LAU12">Lầu 12</option>
+
+                                            <option value="LAU13">Lầu 13</option>
+
+                                            <option value="LAU14">Lầu 14</option>
+
+                                            <option value="LAU15">Lầu 15</option>
+
+                                            <option value="LAU16">Lầu 16</option>
+
+                                            <option value="LAU17">Lầu 17</option>
+
+                                            <option value="LAU18">Lầu 18</option>
+
+                                            <option value="LAU19">Lầu 19</option>
+
+                                            <option value="LAU20">Lầu 20</option>
+
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Diện tích </label>
+                                        <input class="form-control form-control-sm text-color-dark-blue" type="text"
+                                            autocomplete="off" id="room-area" name="room-area" value="">
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Gác </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optGac" name="optGac">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Máy lạnh </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="mlanh" name="mlanh">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Giếng trời </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="gitroi" name="gitroi">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Toilet </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optToilet" name="optToilet">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="CHUNG">Chung</option>
+                                            <option value="RIENG">Riêng</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Bếp </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optBep" name="optBep">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Bồn rửa chén </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optBonRuaChen" name="optBonRuaChen">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Sân phơi </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optSanPhoi" name="optSanPhoi">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="CHUNG">Chung</option>
+                                            <option value="RIENG">Riêng</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Cửa sổ </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optWindow" name="optWindow">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Ban công </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optBanCong" name="optBanCong">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Chổ để xe </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optNhaXe" name="optNhaXe">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="C">Chung</option>
+                                            <option value="R">Trong phòng</option>
+                                            <option value="OUT">Bãi ngoài</option>
+                                        </select>
+                                    </div>
+
+                                </div>
+                            </div>
+                            <div class="col-6 custom-field">
+                                <div class="row ">
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Tủ lạnh </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optTuLanh" name="optTuLanh">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Tivi </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optTivi" name="optTivi">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Máy giặt </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optMayGiat" name="optMayGiat">
+                                            <option value="ALL" selected="selected">Tất cả</option>
+                                            <option value="R">Riêng</option>
+                                            <option value="C">Chung</option>
+                                            <option value="K">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Lò vi sóng </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optLoViSong" name="optLoViSong">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Thang máy </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optElevator" name="optElevator">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Nước nóng </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optNuocNong" name="optNuocNong">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Giường </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optGiuong" name="optGiuong">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Nệm </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optNem" name="optNem">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2 d-none">
+                                        <label class="floatingSelect text-color-dark-blue">Drap </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optDrap" name="optDrap">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Loại khóa cổng </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optGateLockType" name="optGateLockType">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Normal">Thường</option>
+                                            <option value="Fingerprint">Vân tay</option>
+                                            <option value="Magnetic">Thẻ từ</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Tủ quần áo </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optTuQuanAo" name="optTuQuanAo">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Chung chủ </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optBan" name="optBan">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Giờ giấc </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optGhe" name="optGhe">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Tự do</option>
+                                            <option value="N">Theo qui định</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mb-2">
+                                        <label class="floatingSelect text-color-dark-blue">Cho nuôi thú cưng </label>
+                                        <select class="form-select form-select-sm text-color-dark-blue form-select"
+                                            id="optPet" name="optPet">
+                                            <option value="ALL">Tất cả</option>
+                                            <option value="Y">Có</option>
+                                            <option value="N">Không</option>
+                                            <option value="Y-IF">Có (kèm điều kiện)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <!-- Danh sách phòng -->
+        <div class="row" id="room-list">
+            <% rooms.forEach(room=> { %>
+                <%- include("partials/room-card", { room }) %>
+                    <% }); %>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="/js/script.js"></script>
+</body>
+
+</html>

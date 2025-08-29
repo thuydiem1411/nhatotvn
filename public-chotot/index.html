@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chợ Tốt - Danh sách phòng</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font/css/materialdesignicons.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox.css" />
+    <style>
+        body {
+            background: #f8f9fa;
+        }
+        .card {
+            transition: all 0.3s ease;
+            border: 1px solid #e0e0e0;
+            cursor: pointer;
+            overflow: hidden;
+            border-radius: 8px;
+        }
+        .card.agent {
+            border-left: 4px solid #ff6b6b;
+            position: relative;
+        }
+        .badge-agent {
+            background: #ffe6e6;
+            color: #cc0000;
+            border: 1px solid #ffb3b3;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 6px;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-color: #007bff;
+        }
+        .span-house {
+            font-weight: 600;
+            color: #176ca7 !important;
+        }
+        .small {
+            font-size: 0.875rem;
+        }
+        .fs-13 {
+            font-size: 13px;
+        }
+        .text-color {
+            color: #666;
+        }
+        .price-badge {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 3px 6px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        .image-container {
+            position: relative;
+            overflow: hidden;
+        }
+        .image-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .card:hover .image-overlay {
+            opacity: 1;
+        }
+        .image-overlay i {
+            color: white;
+            font-size: 1.5rem;
+        }
+        .modal-xl {
+            max-width: 95%;
+        }
+        .carousel-item img {
+            max-height: 350px;
+            object-fit: cover;
+        }
+        .modal-header {
+            background: linear-gradient(45deg, #007bff, #0056b3);
+            color: white;
+            border-bottom: none;
+        }
+        .modal-header .btn-close {
+            filter: invert(1);
+        }
+        .detail-section {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 8px 0;
+            border-left: 3px solid #007bff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .detail-section h6 {
+            color: #495057;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 6px;
+        }
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 0;
+            font-size: 0.85rem;
+        }
+        .info-item i {
+            width: 16px;
+            color: #007bff;
+            font-size: 0.9rem;
+        }
+        .btn-floating {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #007bff;
+            color: white;
+            border: none;
+            box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        .btn-floating:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 15px rgba(0,123,255,0.4);
+        }
+        .card-body {
+            padding: 0.75rem;
+        }
+        .info-grid-compact {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 6px 0;
+        }
+        .info-item-compact {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.8rem;
+            color: #666;
+        }
+        .info-item-compact i {
+            color: #007bff;
+            font-size: 0.9rem;
+        }
+        .description-text {
+            font-size: 0.85rem;
+            line-height: 1.4;
+            color: #555;
+            margin: 8px 0;
+        }
+        .modal-body {
+            padding: 1rem;
+        }
+        .carousel-indicators {
+            bottom: 10px;
+        }
+        .carousel-indicators button {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin: 0 2px;
+        }
+        /* Ensure Fancybox overlays above Bootstrap modal */
+        /* .fancybox__backdrop, */
+        .fancybox__container {
+            z-index: 200000 !important;
+        }
+        .modal {
+            z-index: 1050;
+        }
+        .modal-backdrop.show {
+            z-index: 1040;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid p-3">
+        <div class="d-flex justify-content-center align-items-center mb-2">
+            <h4 class="text-center mb-0">Danh sách phòng (Chợ Tốt)</h4>
+        </div>
+        
+        <div class="row mb-2 g-2">
+            <div class="col-md-3">
+                <input type="text" id="search-input" class="form-control form-control-sm" 
+                       placeholder="🔍 Tìm kiếm theo tiêu đề, địa chỉ, giá...">
+            </div>
+            <div class="col-md-2">
+                <select id="sort-price" class="form-select form-select-sm">
+                    <option value="none">📊 Không sắp xếp</option>
+                    <option value="asc">💰 Giá tăng dần</option>
+                    <option value="desc">💰 Giá giảm dần</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select id="filter-area" class="form-select form-select-sm">
+                    <option value="">Chọn Quận/Huyện</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select id="filter-ward" class="form-select form-select-sm" disabled>
+                    <option value="">Chọn Phường/Xã</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select id="filter-company" class="form-select form-select-sm">
+                    <option value="" selected>Tất cả</option>
+                    <option value="personal">Cá nhân</option>
+                    <option value="agent">Môi giới</option>
+                </select>
+            </div>
+            <div class="col-md-1 d-flex align-items-center">
+                <small class="text-muted">
+                    <span id="total-count">Đang tải...</span> tin đăng
+                </small>
+            </div>
+        </div>
+        
+        <div class="row" id="ads-list">
+            <div class="col-12 text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Đang tải...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Detail -->
+    <div class="modal fade" id="detailModal" tabindex="-1" aria-labelledby="detailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="detailModalLabel">Chi tiết tin đăng</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="modalContent">
+                    <!-- Content will be loaded here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" class="btn btn-primary" id="contactBtn">
+                        <i class="mdi mdi-phone"></i> Liên hệ
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Button -->
+    <button class="btn-floating" id="scrollTopBtn" style="display: none;">
+        <i class="mdi mdi-arrow-up"></i>
+    </button>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox.umd.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+ </html>
+
+

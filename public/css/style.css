@@ -1,0 +1,35 @@
+.carousel-indicators [data-bs-target] {
+    background-color: #000;
+}
+
+.carousel.slide {
+    width: 100%;
+}
+
+.small,
+small {
+    font-size: 80%;
+    font-weight: 400;
+}
+
+.fw-800 {
+    font-weight: 800 !important;
+}
+
+.text-info {
+    color: #1e88e5 !important;
+}
+
+.span-house {
+    font-weight: 700;
+}
+
+.mdi.fs-6 {
+    font-size: 2rem !important;
+}
+
+hr {
+    margin: 5px 0 !important;
+}
+/* abc: form-control form-control-sm text-color-dark-blue form-select
+bcd: floatingSelect text-color-dark-blue */ 

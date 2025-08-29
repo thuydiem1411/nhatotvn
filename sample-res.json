@@ -1,0 +1,109 @@
+{
+    "total": 7663,
+    "ads": [
+        {
+            "ad_id": 169975543,
+            "list_id": 127122198,
+            "list_time": 1756306673000,
+            "state": "accepted",
+            "type": "u",
+            "account_name": "Hoàng",
+            "region": 13,
+            "category": 1050,
+            "company_ad": true,
+            "subject": "Cho thuê phòng trọ mặt tiền Lê đức thọ",
+            "body": "Nhà trọ nguyên căn ra vào tự do không chung chủ, nhà ngay mặt tiền Lê Đức Thọ đang trống 2 phòng: 1p cực rộng có bancon rộng trồng cây nuôi pet viêw sông cầu cực đẹp,  có kệ bếp labo nấu ăn, phòng có sẵn máy lạnh, giường  nệm và tủ quần áo. Và 1p không có bancon, cũng đầy đủ tiện nghi  như trên. Cần thêm đồ xách vali vô ở đều đc. Nhà để xe rộng dưới trệt,  xung quanh tiện nghi sát chợ, bus...",
+            "price": 2500000,
+            "image": "https://cdn.chotot.com/N8oJ5tu-ASwiQc2TLUN8YeMLB0PzKvTFOUZwIaGEZhI/preset:listing/plain/b71e09c43fb1751439f4c460d17a30d6-2945085596796959951.jpg",
+            "account_id": 9470054,
+            "images": [
+                "https://cdn.chotot.com/ZCb7eFcHn0nAm8Obq9J1Ty1cwiUY7LTm4j9FVoEs8Nk/preset:view/plain/b71e09c43fb1751439f4c460d17a30d6-2945085596796959951.jpg",
+                "https://cdn.chotot.com/Z8SOL6Vah-SR-uAXNEnveUhVHQ2qa9gJpndi9CGZB3I/preset:view/plain/c00693bab9ede7d8273a608c8d545691-2945085596115290183.jpg",
+                "https://cdn.chotot.com/L28GDzj4tQZwP-N8LI3RQ9HEzobCRkeoHNtyZeJe628/preset:view/plain/61a40049fdb883cfd5a7efebff7d0ae4-2945085596854042710.jpg",
+                "https://cdn.chotot.com/6wwWwMESLzLxJeC2ympLxW51q3G-tNGNNJIZ8CdFc4Y/preset:view/plain/3a8fcabdc79eae7eda5417d6d97871ad-2945085597603501107.jpg",
+                "https://cdn.chotot.com/I2IIeAM6JB71ANbCr5KHaXQRiT0oMGdX7vGsRRYs6zE/preset:view/plain/c77f1e0ca6303916968a4b2583dcfbc7-2945085597558751318.jpg",
+                "https://cdn.chotot.com/z22qw4sfR080_gVyJgq5B2hwJ2U5W-j-moClkvpNJhA/preset:view/plain/b844325aa2b46df4fcfcde4e613dbaa8-2945085598296393799.jpg"
+            ],
+            "videos": [],
+            "contain_videos": 2,
+            "orig_list_time": 1755408123000,
+            "status": "active",
+            "size": 18,
+            "area": 110,
+            "longitude": 106.655785,
+            "latitude": 10.855022,
+            "pty_characteristics": [],
+            "region_v2": 13000,
+            "area_v2": 13110,
+            "ward": 9269,
+            "street_number": "12 chợ cầu trường đai",
+            "streetnumber_display": 1,
+            "furnishing_rent": 2,
+            "deposit": 2500000,
+            "street_name": "Đường Lê Đức Thọ",
+            "location_id": "osm:W792919604",
+            "unique_street_id": "fce474a56f1ccec209f212aa064ffdb4",
+            "is_main_street": true,
+            "specific_service_offered": [],
+            "business_days": [],
+            "fee_type": [],
+            "location": "10.8550227,106.6557881",
+            "price_million_per_m2": 0.1388889,
+            "protection_entitlement": false,
+            "label_campaigns": [],
+            "pty_jupiter": 0,
+            "inspection_images": [],
+            "is_sticky": false,
+            "full_name": "Hoàng",
+            "sold_ads": 3,
+            "total_rating": 1,
+            "total_rating_for_seller": 1,
+            "average_rating": 4,
+            "average_rating_for_seller": 4,
+            "date": "38 giây trước",
+            "account_oid": "1bd27076dca293807f99120b79041a09",
+            "category_name": "Phòng trọ",
+            "area_name": "Quận Gò Vấp",
+            "region_name": "Tp Hồ Chí Minh",
+            "price_string": "2,5 triệu/tháng",
+            "webp_image": "https://cdn.chotot.com/OqX_LVnZSIldkF6nV3yBK8ExSeS2uxtFl8mgVl_yCUo/preset:listing/plain/b71e09c43fb1751439f4c460d17a30d6-2945085596796959951.webp",
+            "image_thumbnails": [
+                {
+                    "image": "https://cdn.chotot.com/ZCb7eFcHn0nAm8Obq9J1Ty1cwiUY7LTm4j9FVoEs8Nk/preset:view/plain/b71e09c43fb1751439f4c460d17a30d6-2945085596796959951.jpg",
+                    "thumbnail": "https://cdn.chotot.com/N8oJ5tu-ASwiQc2TLUN8YeMLB0PzKvTFOUZwIaGEZhI/preset:listing/plain/b71e09c43fb1751439f4c460d17a30d6-2945085596796959951.jpg"
+                },
+                {
+                    "image": "https://cdn.chotot.com/Z8SOL6Vah-SR-uAXNEnveUhVHQ2qa9gJpndi9CGZB3I/preset:view/plain/c00693bab9ede7d8273a608c8d545691-2945085596115290183.jpg",
+                    "thumbnail": "https://cdn.chotot.com/MNBex7pm2qhBe9Gad3iVuaBzzNiIBK7K8bA4Y_TAgBM/preset:listing/plain/c00693bab9ede7d8273a608c8d545691-2945085596115290183.jpg"
+                },
+                {
+                    "image": "https://cdn.chotot.com/L28GDzj4tQZwP-N8LI3RQ9HEzobCRkeoHNtyZeJe628/preset:view/plain/61a40049fdb883cfd5a7efebff7d0ae4-2945085596854042710.jpg",
+                    "thumbnail": "https://cdn.chotot.com/RWMFfDreD_aQWZN2tBStE-XAdXWZCL_0mcmeL3TdIu4/preset:listing/plain/61a40049fdb883cfd5a7efebff7d0ae4-2945085596854042710.jpg"
+                },
+                {
+                    "image": "https://cdn.chotot.com/6wwWwMESLzLxJeC2ympLxW51q3G-tNGNNJIZ8CdFc4Y/preset:view/plain/3a8fcabdc79eae7eda5417d6d97871ad-2945085597603501107.jpg",
+                    "thumbnail": "https://cdn.chotot.com/rr8Jw0C_ZtqKYjE8b1P694PBLu1gwtFOiJotlvquiFA/preset:listing/plain/3a8fcabdc79eae7eda5417d6d97871ad-2945085597603501107.jpg"
+                }
+            ],
+            "special_display_images": [],
+            "number_of_images": 6,
+            "ad_features": [],
+            "avatar": "https://cdn.chotot.com/uac2/9470054",
+            "ward_name": "Phường 14",
+            "pty_map": "https://cdn.chotot.com/admincentre/location/10x8550227_106x6557881.jpg",
+            "pty_map_modifier": 0.0008,
+            "thumbnail_image": "https://cdn.chotot.com/N8oJ5tu-ASwiQc2TLUN8YeMLB0PzKvTFOUZwIaGEZhI/preset:listing/plain/b71e09c43fb1751439f4c460d17a30d6-2945085596796959951.jpg",
+            "params": [],
+            "ad_labels": [],
+            "seller_info": {
+                "full_name": "Hoàng",
+                "avatar": "https://cdn.chotot.com/uac2/9470054",
+                "sold_ads": 3,
+                "live_ads": 2
+            },
+            "size_unit_string": "m²",
+            "pty_project_name": "",
+            "is_zalo_show": false
+        }
+    ]
+}

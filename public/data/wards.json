@@ -1,0 +1,1226 @@
+{
+    "785": [
+        {
+            "code": "27595",
+            "name_with_type": "Thị trấn Tân Túc"
+        },
+        {
+            "code": "27625",
+            "name_with_type": "Xã An Phú Tây"
+        },
+        {
+            "code": "27637",
+            "name_with_type": "Xã Bình Chánh"
+        },
+        {
+            "code": "27619",
+            "name_with_type": "Xã Bình Hưng"
+        },
+        {
+            "code": "27607",
+            "name_with_type": "Xã Bình Lợi"
+        },
+        {
+            "code": "27628",
+            "name_with_type": "Xã Hưng Long"
+        },
+        {
+            "code": "27610",
+            "name_with_type": "Xã Lê Minh Xuân"
+        },
+        {
+            "code": "27622",
+            "name_with_type": "Xã Phong Phú"
+        },
+        {
+            "code": "27598",
+            "name_with_type": "Xã Phạm Văn Hai"
+        },
+        {
+            "code": "27640",
+            "name_with_type": "Xã Quy Đức"
+        },
+        {
+            "code": "27616",
+            "name_with_type": "Xã Tân Kiên"
+        },
+        {
+            "code": "27613",
+            "name_with_type": "Xã Tân Nhựt"
+        },
+        {
+            "code": "27634",
+            "name_with_type": "Xã Tân Quý Tây"
+        },
+        {
+            "code": "27601",
+            "name_with_type": "Xã Vĩnh Lộc A"
+        },
+        {
+            "code": "27604",
+            "name_with_type": "Xã Vĩnh Lộc B"
+        },
+        {
+            "code": "27631",
+            "name_with_type": "Xã Đa Phước"
+        }
+    ],
+    "787": [
+        {
+            "code": "27664",
+            "name_with_type": "Thị trấn Cần Thạnh"
+        },
+        {
+            "code": "27673",
+            "name_with_type": "Xã An Thới Đông"
+        },
+        {
+            "code": "27667",
+            "name_with_type": "Xã Bình Khánh"
+        },
+        {
+            "code": "27679",
+            "name_with_type": "Xã Long Hòa"
+        },
+        {
+            "code": "27682",
+            "name_with_type": "Xã Lý Nhơn"
+        },
+        {
+            "code": "27670",
+            "name_with_type": "Xã Tam Thôn Hiệp"
+        },
+        {
+            "code": "27676",
+            "name_with_type": "Xã Thạnh An"
+        }
+    ],
+    "783": [
+        {
+            "code": "27496",
+            "name_with_type": "Thị trấn Củ Chi"
+        },
+        {
+            "code": "27508",
+            "name_with_type": "Xã An Nhơn Tây"
+        },
+        {
+            "code": "27502",
+            "name_with_type": "Xã An Phú"
+        },
+        {
+            "code": "27550",
+            "name_with_type": "Xã Bình Mỹ"
+        },
+        {
+            "code": "27544",
+            "name_with_type": "Xã Hòa Phú"
+        },
+        {
+            "code": "27511",
+            "name_with_type": "Xã Nhuận Đức"
+        },
+        {
+            "code": "27517",
+            "name_with_type": "Xã Phú Hòa Đông"
+        },
+        {
+            "code": "27499",
+            "name_with_type": "Xã Phú Mỹ Hưng"
+        },
+        {
+            "code": "27529",
+            "name_with_type": "Xã Phước Hiệp"
+        },
+        {
+            "code": "27526",
+            "name_with_type": "Xã Phước Thạnh"
+        },
+        {
+            "code": "27535",
+            "name_with_type": "Xã Phước Vĩnh An"
+        },
+        {
+            "code": "27514",
+            "name_with_type": "Xã Phạm Văn Cội"
+        },
+        {
+            "code": "27538",
+            "name_with_type": "Xã Thái Mỹ"
+        },
+        {
+            "code": "27523",
+            "name_with_type": "Xã Trung An"
+        },
+        {
+            "code": "27520",
+            "name_with_type": "Xã Trung Lập Hạ"
+        },
+        {
+            "code": "27505",
+            "name_with_type": "Xã Trung Lập Thượng"
+        },
+        {
+            "code": "27532",
+            "name_with_type": "Xã Tân An Hội"
+        },
+        {
+            "code": "27553",
+            "name_with_type": "Xã Tân Phú Trung"
+        },
+        {
+            "code": "27556",
+            "name_with_type": "Xã Tân Thông Hội"
+        },
+        {
+            "code": "27541",
+            "name_with_type": "Xã Tân Thạnh Tây"
+        },
+        {
+            "code": "27547",
+            "name_with_type": "Xã Tân Thạnh Đông"
+        }
+    ],
+    "784": [
+        {
+            "code": "27559",
+            "name_with_type": "Thị trấn Hóc Môn"
+        },
+        {
+            "code": "27592",
+            "name_with_type": "Xã Bà Điểm"
+        },
+        {
+            "code": "27565",
+            "name_with_type": "Xã Nhị Bình"
+        },
+        {
+            "code": "27574",
+            "name_with_type": "Xã Thới Tam Thôn"
+        },
+        {
+            "code": "27586",
+            "name_with_type": "Xã Trung Chánh"
+        },
+        {
+            "code": "27562",
+            "name_with_type": "Xã Tân Hiệp"
+        },
+        {
+            "code": "27571",
+            "name_with_type": "Xã Tân Thới Nhì"
+        },
+        {
+            "code": "27580",
+            "name_with_type": "Xã Tân Xuân"
+        },
+        {
+            "code": "27577",
+            "name_with_type": "Xã Xuân Thới Sơn"
+        },
+        {
+            "code": "27589",
+            "name_with_type": "Xã Xuân Thới Thượng"
+        },
+        {
+            "code": "27583",
+            "name_with_type": "Xã Xuân Thới Đông"
+        },
+        {
+            "code": "27568",
+            "name_with_type": "Xã Đông Thạnh"
+        }
+    ],
+    "786": [
+        {
+            "code": "27643",
+            "name_with_type": "Thị trấn Nhà Bè"
+        },
+        {
+            "code": "27661",
+            "name_with_type": "Xã Hiệp Phước"
+        },
+        {
+            "code": "27658",
+            "name_with_type": "Xã Long Thới"
+        },
+        {
+            "code": "27652",
+            "name_with_type": "Xã Nhơn Đức"
+        },
+        {
+            "code": "27655",
+            "name_with_type": "Xã Phú Xuân"
+        },
+        {
+            "code": "27646",
+            "name_with_type": "Xã Phước Kiển"
+        },
+        {
+            "code": "27649",
+            "name_with_type": "Xã Phước Lộc"
+        }
+    ],
+    "760": [
+        {
+            "code": "26740",
+            "name_with_type": "Phường Bến Nghé"
+        },
+        {
+            "code": "26743",
+            "name_with_type": "Phường Bến Thành"
+        },
+        {
+            "code": "26755",
+            "name_with_type": "Phường Cô Giang"
+        },
+        {
+            "code": "26761",
+            "name_with_type": "Phường Cầu Kho"
+        },
+        {
+            "code": "26752",
+            "name_with_type": "Phường Cầu Ông Lãnh"
+        },
+        {
+            "code": "26758",
+            "name_with_type": "Phường Nguyễn Cư Trinh"
+        },
+        {
+            "code": "26746",
+            "name_with_type": "Phường Nguyễn Thái Bình"
+        },
+        {
+            "code": "26749",
+            "name_with_type": "Phường Phạm Ngũ Lão"
+        },
+        {
+            "code": "26734",
+            "name_with_type": "Phường Tân Định"
+        },
+        {
+            "code": "26737",
+            "name_with_type": "Phường Đa Kao"
+        }
+    ],
+    "771": [
+        {
+            "code": "27184",
+            "name_with_type": "Phường 01"
+        },
+        {
+            "code": "27190",
+            "name_with_type": "Phường 02"
+        },
+        {
+            "code": "27193",
+            "name_with_type": "Phường 04"
+        },
+        {
+            "code": "27202",
+            "name_with_type": "Phường 06"
+        },
+        {
+            "code": "27187",
+            "name_with_type": "Phường 08"
+        },
+        {
+            "code": "27181",
+            "name_with_type": "Phường 09"
+        },
+        {
+            "code": "27178",
+            "name_with_type": "Phường 10"
+        },
+        {
+            "code": "27172",
+            "name_with_type": "Phường 12"
+        },
+        {
+            "code": "27166",
+            "name_with_type": "Phường 13"
+        },
+        {
+            "code": "27169",
+            "name_with_type": "Phường 14"
+        },
+        {
+            "code": "27163",
+            "name_with_type": "Phường 15"
+        }
+    ],
+    "772": [
+        {
+            "code": "27247",
+            "name_with_type": "Phường 01"
+        },
+        {
+            "code": "27220",
+            "name_with_type": "Phường 03"
+        },
+        {
+            "code": "27211",
+            "name_with_type": "Phường 05"
+        },
+        {
+            "code": "27238",
+            "name_with_type": "Phường 07"
+        },
+        {
+            "code": "27229",
+            "name_with_type": "Phường 08"
+        },
+        {
+            "code": "27223",
+            "name_with_type": "Phường 10"
+        },
+        {
+            "code": "27217",
+            "name_with_type": "Phường 11"
+        },
+        {
+            "code": "27214",
+            "name_with_type": "Phường 14"
+        },
+        {
+            "code": "27208",
+            "name_with_type": "Phường 15"
+        },
+        {
+            "code": "27253",
+            "name_with_type": "Phường 16"
+        }
+    ],
+    "761": [
+        {
+            "code": "26779",
+            "name_with_type": "Phường An Phú Đông"
+        },
+        {
+            "code": "26770",
+            "name_with_type": "Phường Hiệp Thành"
+        },
+        {
+            "code": "26767",
+            "name_with_type": "Phường Thạnh Lộc"
+        },
+        {
+            "code": "26764",
+            "name_with_type": "Phường Thạnh Xuân"
+        },
+        {
+            "code": "26773",
+            "name_with_type": "Phường Thới An"
+        },
+        {
+            "code": "26785",
+            "name_with_type": "Phường Trung Mỹ Tây"
+        },
+        {
+            "code": "26776",
+            "name_with_type": "Phường Tân Chánh Hiệp"
+        },
+        {
+            "code": "26787",
+            "name_with_type": "Phường Tân Hưng Thuận"
+        },
+        {
+            "code": "26782",
+            "name_with_type": "Phường Tân Thới Hiệp"
+        },
+        {
+            "code": "26791",
+            "name_with_type": "Phường Tân Thới Nhất"
+        },
+        {
+            "code": "26788",
+            "name_with_type": "Phường Đông Hưng Thuận"
+        }
+    ],
+    "779": [
+        {
+            "code": "77904",
+            "name_with_type": "Phường An Khánh"
+        },
+        {
+            "code": "77905",
+            "name_with_type": "Phường An Lợi Đông"
+        },
+        {
+            "code": "77906",
+            "name_with_type": "Phường An Phú"
+        },
+        {
+            "code": "77907",
+            "name_with_type": "Phường Bình An"
+        },
+        {
+            "code": "77908",
+            "name_with_type": "Phường Bình Khánh"
+        },
+        {
+            "code": "77901",
+            "name_with_type": "Phường Bình Trưng Tây"
+        },
+        {
+            "code": "77909",
+            "name_with_type": "Phường Bình Trưng Đông"
+        },
+        {
+            "code": "77911",
+            "name_with_type": "Phường Cát Lái"
+        },
+        {
+            "code": "77903",
+            "name_with_type": "Phường Thạnh Mỹ Lợi"
+        },
+        {
+            "code": "77902",
+            "name_with_type": "Phường Thảo Điền"
+        },
+        {
+            "code": "77910",
+            "name_with_type": "Phường Thủ Thiêm"
+        }
+    ],
+    "770": [
+        {
+            "code": "27160",
+            "name_with_type": "Phường 01"
+        },
+        {
+            "code": "27157",
+            "name_with_type": "Phường 02"
+        },
+        {
+            "code": "27154",
+            "name_with_type": "Phường 03"
+        },
+        {
+            "code": "27148",
+            "name_with_type": "Phường 04"
+        },
+        {
+            "code": "27151",
+            "name_with_type": "Phường 05"
+        },
+        {
+            "code": "27149",
+            "name_with_type": "Phường 06"
+        },
+        {
+            "code": "27152",
+            "name_with_type": "Phường 07"
+        },
+        {
+            "code": "27153",
+            "name_with_type": "Phường 08"
+        },
+        {
+            "code": "27142",
+            "name_with_type": "Phường 09"
+        },
+        {
+            "code": "27133",
+            "name_with_type": "Phường 11"
+        },
+        {
+            "code": "27130",
+            "name_with_type": "Phường 12"
+        },
+        {
+            "code": "27127",
+            "name_with_type": "Phường 14"
+        },
+        {
+            "code": "27139",
+            "name_with_type": "Phường Võ Thị Sáu"
+        }
+    ],
+    "773": [
+        {
+            "code": "27298",
+            "name_with_type": "Phường 01"
+        },
+        {
+            "code": "27292",
+            "name_with_type": "Phường 02"
+        },
+        {
+            "code": "27286",
+            "name_with_type": "Phường 03"
+        },
+        {
+            "code": "27283",
+            "name_with_type": "Phường 04"
+        },
+        {
+            "code": "27285",
+            "name_with_type": "Phường 05"
+        },
+        {
+            "code": "27268",
+            "name_with_type": "Phường 08"
+        },
+        {
+            "code": "27262",
+            "name_with_type": "Phường 09"
+        },
+        {
+            "code": "27260",
+            "name_with_type": "Phường 12"
+        },
+        {
+            "code": "27259",
+            "name_with_type": "Phường 13"
+        },
+        {
+            "code": "27295",
+            "name_with_type": "Phường 15"
+        },
+        {
+            "code": "27289",
+            "name_with_type": "Phường 16"
+        },
+        {
+            "code": "27277",
+            "name_with_type": "Phường 18"
+        }
+    ],
+    "774": [
+        {
+            "code": "27325",
+            "name_with_type": "Phường 01"
+        },
+        {
+            "code": "27313",
+            "name_with_type": "Phường 02"
+        },
+        {
+            "code": "27301",
+            "name_with_type": "Phường 04"
+        },
+        {
+            "code": "27334",
+            "name_with_type": "Phường 05"
+        },
+        {
+            "code": "27322",
+            "name_with_type": "Phường 07"
+        },
+        {
+            "code": "27304",
+            "name_with_type": "Phường 09"
+        },
+        {
+            "code": "27328",
+            "name_with_type": "Phường 11"
+        },
+        {
+            "code": "27310",
+            "name_with_type": "Phường 12"
+        },
+        {
+            "code": "27343",
+            "name_with_type": "Phường 13"
+        },
+        {
+            "code": "27331",
+            "name_with_type": "Phường 14"
+        }
+    ],
+    "775": [
+        {
+            "code": "27370",
+            "name_with_type": "Phường 01"
+        },
+        {
+            "code": "27367",
+            "name_with_type": "Phường 02"
+        },
+        {
+            "code": "27361",
+            "name_with_type": "Phường 05"
+        },
+        {
+            "code": "27382",
+            "name_with_type": "Phường 07"
+        },
+        {
+            "code": "27376",
+            "name_with_type": "Phường 08"
+        },
+        {
+            "code": "27352",
+            "name_with_type": "Phường 09"
+        },
+        {
+            "code": "27385",
+            "name_with_type": "Phường 10"
+        },
+        {
+            "code": "27364",
+            "name_with_type": "Phường 11"
+        },
+        {
+            "code": "27358",
+            "name_with_type": "Phường 12"
+        },
+        {
+            "code": "27349",
+            "name_with_type": "Phường 13"
+        },
+        {
+            "code": "27346",
+            "name_with_type": "Phường 14"
+        }
+    ],
+    "778": [
+        {
+            "code": "27478",
+            "name_with_type": "Phường Bình Thuận"
+        },
+        {
+            "code": "27493",
+            "name_with_type": "Phường Phú Mỹ"
+        },
+        {
+            "code": "27484",
+            "name_with_type": "Phường Phú Thuận"
+        },
+        {
+            "code": "27475",
+            "name_with_type": "Phường Tân Hưng"
+        },
+        {
+            "code": "27472",
+            "name_with_type": "Phường Tân Kiểng"
+        },
+        {
+            "code": "27490",
+            "name_with_type": "Phường Tân Phong"
+        },
+        {
+            "code": "27487",
+            "name_with_type": "Phường Tân Phú"
+        },
+        {
+            "code": "27481",
+            "name_with_type": "Phường Tân Quy"
+        },
+        {
+            "code": "27469",
+            "name_with_type": "Phường Tân Thuận Tây"
+        },
+        {
+            "code": "27466",
+            "name_with_type": "Phường Tân Thuận Đông"
+        }
+    ],
+    "776": [
+        {
+            "code": "27409",
+            "name_with_type": "Phường 04"
+        },
+        {
+            "code": "27418",
+            "name_with_type": "Phường 05"
+        },
+        {
+            "code": "27424",
+            "name_with_type": "Phường 06"
+        },
+        {
+            "code": "27433",
+            "name_with_type": "Phường 07"
+        },
+        {
+            "code": "27421",
+            "name_with_type": "Phường 14"
+        },
+        {
+            "code": "27427",
+            "name_with_type": "Phường 15"
+        },
+        {
+            "code": "27430",
+            "name_with_type": "Phường 16"
+        },
+        {
+            "code": "27403",
+            "name_with_type": "Phường Hưng Phú"
+        },
+        {
+            "code": "27397",
+            "name_with_type": "Phường Rạch Ông"
+        },
+        {
+            "code": "27415",
+            "name_with_type": "Phường Xóm Củi"
+        }
+    ],
+    "780": [
+        {
+            "code": "78001",
+            "name_with_type": "Phường Hiệp Phú"
+        },
+        {
+            "code": "78002",
+            "name_with_type": "Phường Long Thạnh Mỹ"
+        }
+    ],
+    "765": [
+        {
+            "code": "26944",
+            "name_with_type": "Phường 01"
+        },
+        {
+            "code": "26941",
+            "name_with_type": "Phường 02"
+        },
+        {
+            "code": "26923",
+            "name_with_type": "Phường 05"
+        },
+        {
+            "code": "26932",
+            "name_with_type": "Phường 06"
+        },
+        {
+            "code": "26926",
+            "name_with_type": "Phường 07"
+        },
+        {
+            "code": "26908",
+            "name_with_type": "Phường 11"
+        },
+        {
+            "code": "26917",
+            "name_with_type": "Phường 12"
+        },
+        {
+            "code": "26905",
+            "name_with_type": "Phường 13"
+        },
+        {
+            "code": "26935",
+            "name_with_type": "Phường 14"
+        },
+        {
+            "code": "26950",
+            "name_with_type": "Phường 17"
+        },
+        {
+            "code": "26959",
+            "name_with_type": "Phường 19"
+        },
+        {
+            "code": "26956",
+            "name_with_type": "Phường 22"
+        },
+        {
+            "code": "26920",
+            "name_with_type": "Phường 25"
+        },
+        {
+            "code": "26914",
+            "name_with_type": "Phường 26"
+        },
+        {
+            "code": "26911",
+            "name_with_type": "Phường 27"
+        },
+        {
+            "code": "26962",
+            "name_with_type": "Phường 28"
+        }
+    ],
+    "777": [
+        {
+            "code": "27460",
+            "name_with_type": "Phường  An Lạc"
+        },
+        {
+            "code": "27463",
+            "name_with_type": "Phường An Lạc A"
+        },
+        {
+            "code": "27439",
+            "name_with_type": "Phường Bình Hưng Hoà A"
+        },
+        {
+            "code": "27442",
+            "name_with_type": "Phường Bình Hưng Hoà B"
+        },
+        {
+            "code": "27436",
+            "name_with_type": "Phường Bình Hưng Hòa"
+        },
+        {
+            "code": "27445",
+            "name_with_type": "Phường Bình Trị Đông"
+        },
+        {
+            "code": "27448",
+            "name_with_type": "Phường Bình Trị Đông A"
+        },
+        {
+            "code": "27451",
+            "name_with_type": "Phường Bình Trị Đông B"
+        },
+        {
+            "code": "27454",
+            "name_with_type": "Phường Tân Tạo"
+        },
+        {
+            "code": "27457",
+            "name_with_type": "Phường Tân Tạo A"
+        }
+    ],
+    "764": [
+        {
+            "code": "26896",
+            "name_with_type": "Phường 01"
+        },
+        {
+            "code": "26902",
+            "name_with_type": "Phường 03"
+        },
+        {
+            "code": "26887",
+            "name_with_type": "Phường 05"
+        },
+        {
+            "code": "26884",
+            "name_with_type": "Phường 10"
+        },
+        {
+            "code": "26899",
+            "name_with_type": "Phường 11"
+        },
+        {
+            "code": "26881",
+            "name_with_type": "Phường 12"
+        },
+        {
+            "code": "26872",
+            "name_with_type": "Phường 13"
+        },
+        {
+            "code": "26882",
+            "name_with_type": "Phường 14"
+        },
+        {
+            "code": "26869",
+            "name_with_type": "Phường 15"
+        },
+        {
+            "code": "26878",
+            "name_with_type": "Phường 16"
+        },
+        {
+            "code": "26875",
+            "name_with_type": "Phường 17"
+        },
+        {
+            "code": "26876",
+            "name_with_type": "Phường 6"
+        },
+        {
+            "code": "26898",
+            "name_with_type": "Phường 8"
+        }
+    ],
+    "768": [
+        {
+            "code": "27058",
+            "name_with_type": "Phường 01"
+        },
+        {
+            "code": "27061",
+            "name_with_type": "Phường 02"
+        },
+        {
+            "code": "27043",
+            "name_with_type": "Phường 04"
+        },
+        {
+            "code": "27046",
+            "name_with_type": "Phường 05"
+        },
+        {
+            "code": "27052",
+            "name_with_type": "Phường 07"
+        },
+        {
+            "code": "27064",
+            "name_with_type": "Phường 08"
+        },
+        {
+            "code": "27049",
+            "name_with_type": "Phường 09"
+        },
+        {
+            "code": "27070",
+            "name_with_type": "Phường 10"
+        },
+        {
+            "code": "27073",
+            "name_with_type": "Phường 11"
+        },
+        {
+            "code": "27085",
+            "name_with_type": "Phường 13"
+        },
+        {
+            "code": "27067",
+            "name_with_type": "Phường 15"
+        }
+    ],
+    "766": [
+        {
+            "code": "26977",
+            "name_with_type": "Phường 01"
+        },
+        {
+            "code": "26965",
+            "name_with_type": "Phường 02"
+        },
+        {
+            "code": "26980",
+            "name_with_type": "Phường 03"
+        },
+        {
+            "code": "26968",
+            "name_with_type": "Phường 04"
+        },
+        {
+            "code": "26989",
+            "name_with_type": "Phường 05"
+        },
+        {
+            "code": "26995",
+            "name_with_type": "Phường 06"
+        },
+        {
+            "code": "26986",
+            "name_with_type": "Phường 07"
+        },
+        {
+            "code": "26998",
+            "name_with_type": "Phường 08"
+        },
+        {
+            "code": "27001",
+            "name_with_type": "Phường 09"
+        },
+        {
+            "code": "26992",
+            "name_with_type": "Phường 10"
+        },
+        {
+            "code": "26983",
+            "name_with_type": "Phường 11"
+        },
+        {
+            "code": "26971",
+            "name_with_type": "Phường 12"
+        },
+        {
+            "code": "26974",
+            "name_with_type": "Phường 13"
+        },
+        {
+            "code": "27004",
+            "name_with_type": "Phường 14"
+        },
+        {
+            "code": "27007",
+            "name_with_type": "Phường 15"
+        }
+    ],
+    "767": [
+        {
+            "code": "27037",
+            "name_with_type": "Phường Hiệp Tân"
+        },
+        {
+            "code": "27034",
+            "name_with_type": "Phường Hòa Thạnh"
+        },
+        {
+            "code": "27028",
+            "name_with_type": "Phường Phú Thạnh"
+        },
+        {
+            "code": "27025",
+            "name_with_type": "Phường Phú Thọ Hòa"
+        },
+        {
+            "code": "27031",
+            "name_with_type": "Phường Phú Trung"
+        },
+        {
+            "code": "27016",
+            "name_with_type": "Phường Sơn Kỳ"
+        },
+        {
+            "code": "27019",
+            "name_with_type": "Phường Tân Quý"
+        },
+        {
+            "code": "27010",
+            "name_with_type": "Phường Tân Sơn Nhì"
+        },
+        {
+            "code": "27022",
+            "name_with_type": "Phường Tân Thành"
+        },
+        {
+            "code": "27040",
+            "name_with_type": "Phường Tân Thới Hòa"
+        },
+        {
+            "code": "27013",
+            "name_with_type": "Phường Tây Thạnh"
+        }
+    ],
+    "769": [
+        {
+            "code": "27094",
+            "name_with_type": "Phường An Khánh"
+        },
+        {
+            "code": "27115",
+            "name_with_type": "Phường An Lợi Đông"
+        },
+        {
+            "code": "27091",
+            "name_with_type": "Phường An Phú"
+        },
+        {
+            "code": "26797",
+            "name_with_type": "Phường Bình Chiểu"
+        },
+        {
+            "code": "26824",
+            "name_with_type": "Phường Bình Thọ"
+        },
+        {
+            "code": "27100",
+            "name_with_type": "Phường Bình Trưng Tây"
+        },
+        {
+            "code": "27097",
+            "name_with_type": "Phường Bình Trưng Đông"
+        },
+        {
+            "code": "27109",
+            "name_with_type": "Phường Cát Lái"
+        },
+        {
+            "code": "26812",
+            "name_with_type": "Phường Hiệp Bình Chánh"
+        },
+        {
+            "code": "26809",
+            "name_with_type": "Phường Hiệp Bình Phước"
+        },
+        {
+            "code": "26839",
+            "name_with_type": "Phường Hiệp Phú"
+        },
+        {
+            "code": "26815",
+            "name_with_type": "Phường Linh Chiểu"
+        },
+        {
+            "code": "26800",
+            "name_with_type": "Phường Linh Trung"
+        },
+        {
+            "code": "26818",
+            "name_with_type": "Phường Linh Tây"
+        },
+        {
+            "code": "26794",
+            "name_with_type": "Phường Linh Xuân"
+        },
+        {
+            "code": "26821",
+            "name_with_type": "Phường Linh Đông"
+        },
+        {
+            "code": "26830",
+            "name_with_type": "Phường Long Bình"
+        },
+        {
+            "code": "26857",
+            "name_with_type": "Phường Long Phước"
+        },
+        {
+            "code": "26833",
+            "name_with_type": "Phường Long Thạnh Mỹ"
+        },
+        {
+            "code": "26860",
+            "name_with_type": "Phường Long Trường"
+        },
+        {
+            "code": "26866",
+            "name_with_type": "Phường Phú Hữu"
+        },
+        {
+            "code": "26863",
+            "name_with_type": "Phường Phước Bình"
+        },
+        {
+            "code": "26851",
+            "name_with_type": "Phường Phước Long A"
+        },
+        {
+            "code": "26848",
+            "name_with_type": "Phường Phước Long B"
+        },
+        {
+            "code": "26803",
+            "name_with_type": "Phường Tam Bình"
+        },
+        {
+            "code": "26806",
+            "name_with_type": "Phường Tam Phú"
+        },
+        {
+            "code": "27112",
+            "name_with_type": "Phường Thạnh Mỹ Lợi"
+        },
+        {
+            "code": "27088",
+            "name_with_type": "Phường Thảo Điền"
+        },
+        {
+            "code": "27118",
+            "name_with_type": "Phường Thủ Thiêm"
+        },
+        {
+            "code": "26854",
+            "name_with_type": "Phường Trường Thạnh"
+        },
+        {
+            "code": "26827",
+            "name_with_type": "Phường Trường Thọ"
+        },
+        {
+            "code": "26836",
+            "name_with_type": "Phường Tân Phú"
+        },
+        {
+            "code": "26842",
+            "name_with_type": "Phường Tăng Nhơn Phú A"
+        },
+        {
+            "code": "26845",
+            "name_with_type": "Phường Tăng Nhơn Phú B"
+        }
+    ]
+}

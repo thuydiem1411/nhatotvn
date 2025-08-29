@@ -1,0 +1,313 @@
+<div class="col-md-4 col-lg-4 col-xlg-4 mb-2 content-room" data-key="<%= room._id %>"
+    data-house_key="<%= room.house_key %>">
+    <div class="card card-body p-2 mb-2" style="min-height: 200px; ">
+
+        <div class="row">
+            <div class="col-5 text-center m-0 pr-0" style="display: flex;" id="carousel">
+                <div id="carouselExampleIndicators-<%= room._id %>" class="carousel slide">
+                    <% if (room.images && room.images.length) { %>
+                        <div class="carousel-indicators">
+                            <% room.images.forEach((image, index)=> { %>
+                                <button type="button" data-bs-target="#carouselExampleIndicators-<%= room._id %>"
+                                    data-bs-slide-to="<%= index %>" class="<%= index === 0 ? 'active' : '' %>"
+                                    aria-current="<%= index === 0 ? 'true' : 'false' %>"
+                                    aria-label="Slide <%= index + 1 %>"></button>
+                                <% }) %>
+                        </div>
+                        <div class="carousel-inner">
+                            <% room.images.forEach((image, index)=> { %>
+                                <div class="carousel-item <%= index === 0 ? 'active' : '' %>">
+                                    <img loading="lazy" src="https://quanly.nhatrovn.vn<%= image %>"
+                                        class="d-block w-100 object-fit-cover" alt="Image <%= index + 1 %>"
+                                        style="height: 200px;">
+                                </div>
+                                <% }) %>
+                        </div>
+                        <button class="carousel-control-prev" type="button"
+                            data-bs-target="#carouselExampleIndicators-<%= room._id %>" data-bs-slide="prev">
+                            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                            <span class="visually-hidden">Previous</span>
+                        </button>
+                        <button class="carousel-control-next" type="button"
+                            data-bs-target="#carouselExampleIndicators-<%= room._id %>" data-bs-slide="next">
+                            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                            <span class="visually-hidden">Next</span>
+                        </button>
+                        <% } else { %>
+                            <img src="https://quanly.nhatrovn.vn/static/images/logo-nhatrovn.png" alt="Room Image"
+                                class="d-block w-100 object-fit-cover" lazy="loading">
+                            <% } %>
+                </div>
+            </div>
+            <div class="col-7 m-0">
+                <span style="position: absolute; right: 15px; margin-top: -5px; z-index: 15;"><i
+                        class="mdi mdi-share fs-6 text-danger"
+                        style="color: #ff0000 !important; cursor: pointer;" data-sub-action="share-social-network"
+                        data-id="<%= room._id %>"
+                        title="Share"></i></span>
+                <div class="row">
+                    <div class="col-12">
+                        <p style="margin-bottom: 0;overflow: hidden;text-overflow: ellipsis;line-height: 12px; "
+                            class="text-color-room-caretaker text-center fs-13 py-1">
+                            <span class="span-house" style="color: #176ca7;">
+                                <%= room.room_code + " - " %><%= room.fake_address %>
+                            </span>
+                        </p>
+                    </div>
+
+                    <div class="col-12 text-left p-r-20">
+                        <span class="small fs-i fs-9" style="color: #99abb4;"><%= room.last_update %></span>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="small" style="width: 90% !important;">
+                            <i class="mdi mdi-arrow-right-thick"></i>
+                            <span class="span-address"><%= room.house_address %></span>
+                            <!-- <span class="c-pointer text-danger" data-sub-action="show-hide-address">[Ẩn/hiện]</span> -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="small text-danger">
+                            <i class="mdi mdi-arrow-right-thick"></i>
+                            <span>Giá cho thuê:</span>
+                            <span class="fw-bolder"><%= room.gia_cho_thue %></span>
+                        </div>
+                        <div class="row">
+                            <div class="col-12 small text-danger">
+                                <div style="white-space: normal;">
+                                    <span class="fw-bolder contract-time"><i class="mdi mdi-arrow-right-thick"></i>Cọc thuê: <%= room.info_tgi_kyhd %></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+                        <div class="row">
+                            <div class="col-6 col-lg-6 small">
+                                <div style="white-space: nowrap;"><span>Điện: </span><span class="fw-bolder"><%= room.electricity %></span><span class="fw-bolder"><%= room.electricity_unit %></span></div>
+                                <div style="white-space: nowrap;"><span>Nước: </span><span class="fw-bolder"><%= room.water %></span><span class="fw-bolder"><%= room.water_unit %></span></div>
+                                <div style="white-space: nowrap;"><span>Xe: </span><span class="fw-bolder"><%= room.parking %></span><span class="fw-bolder"><%= room.parking_unit %></span></div>
+                                <div style="white-space: normal;"><span>Quản lý: </span><span class="fw-bolder"><%= room.garbagefee %></span><span class="fw-bolder"><%= room.garbagefee_unit %></span></div>
+                            </div>
+                            <div class="col-6 col-lg-6 small">
+                                <div style="white-space: nowrap;"><span>Wifi: </span><span class="fw-bolder"><%= room.show_text_wifi %></span></div>
+                                <div style="white-space: nowrap;"><span>M.giặt: </span><span class="fw-bolder"><%= room.washingmachinefee %></span><span class="fw-bolder"><%= room.washingmachinefee_unit %></span></div>
+                                <div style="white-space: nowrap;"><span>Thẻ: </span><span class="fw-bolder"><%= room.card %></span><span class="fw-bolder"><%= room.card_unit %></span></div>
+                                <div style="white-space: normal;"><span>Phí DV: </span><span class="fw-bolder"><%= room.otherfee %></span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                <div style="margin-bottom: 0;" class="text-color-room-live text-left fs-11">
+                    <span class="small">
+                        <a class="text-color-room-live fs-10 text-decoration-none"
+                            href="https://www.google.gg/maps/place/704%2F60+HL2,+B%C3%ACnh+Tr%E1%BB%8B+%C4%90%C3%B4ng+A,+B%C3%ACnh+T%C3%A2n,+H%E1%BB%93+Ch%C3%AD+Minh,+Vietnam/@10.7700844,106.603554,17z/data=!3m1!4b1!4m6!3m5!1s0x31752da109a1cf45:0xea951139798db5e2!8m2!3d10.7700844!4d106.6061289!16s%2Fg%2F11vk1nqyp4?entry=ttu"
+                            target="_blank">
+                            <i class="mdi mdi-google-maps text-success"></i>
+                            <span class="text-success">Link Google Map</span>
+                        </a>
+                    </span>
+                    <!-- <span class="small c-pointer text-danger" data-sub-action="show-hide-noi-that">[Ẩn/hiện nội thất]</span> -->
+                </div>
+            </div>
+        </div>
+
+        <div class="row div-noi-that">
+            <div class="col-12">
+                <hr>
+            </div>
+            <div class="col-12">
+                <div class="row">
+                    <div class="col-4 small ">
+                        <span>Phòng: </span><span class="fw-bold"><%= room.room_info.cooling_type %></span>
+                    </div>
+                    <div class="col-4 small">
+                        <span>Vị trí: </span><span class="fw-bold"><%= room.room_info.location %></span>
+                    </div>
+                    <div class="col-4 small ">
+                        <span>Diện tích: </span><span class="fw-bold"><%= room.room_info.room_area %></span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12">
+                <div class="row">
+                    <div class="col-4 small ">
+                        <span>Toilet: </span><span class="fw-bold"><%= room.room_info.opt_toilet %></span>
+                    </div>
+                    <div class="col-4 small">
+                        <span>Để xe: </span><span class="fw-bold"><%= room.room_info.opt_nhaxe %></span>
+                    </div>
+                    <div class="col-4 small ">
+                        <span>Sân phơi: </span><span class="fw-bold"><%= room.room_info.opt_sanphoi %></span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12">
+                <div class="row">
+                    <div class="col-4 small">
+                        <span>Khóa cổng: </span><span class="fw-bold"><%= room.room_info.opt_gatelocktype %></span>
+                    </div>
+                    <div class="col-8 small">
+                        <span>Giờ giấc: </span><span class="fw-bold"><%= room.room_info.opt_ghe %></span>
+
+                    </div>
+                </div>
+            </div>
+            <div class="col-12">
+                <div class="row">
+                    <div class="col-4 small">
+                        <span>SL xe: </span><span class="fw-bold"><%= room.room_info.slxe %></span>
+                    </div>
+                    <div class="col-8 small">
+                        <span>SL người: </span><span class="fw-bold"><%= room.room_info.slnguoio %></span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12">
+                <div class="row">
+                    <div class="col-4 small">
+                        <span>Cọc giữ chổ: </span><span class="fw-bold"><%= room.room_info.cgicho %></span>
+                    </div>
+                    <div class="col-4 small">
+                        <span>Hẹn bổ sung cọc: </span><span class="fw-bold"><%= room.room_info.thgibscoc %></span>
+                    </div>
+                    <div class="col-4 small">
+                        <span>Hẹn dọn vào: </span><span class="fw-bold"><%= room.room_info.thgivaoo %></span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12">
+                <hr>
+            </div>
+            <div class="col-12">
+                <div class="row">
+                    <div class="col-4 small ">
+                        <span>Gác: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.opt_gac=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                    <div class="col-4 small">
+                        <span>Cửa sổ: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.opt_window=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                    <div class="col-4 small ">
+                        <span>Ban công: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.opt_bancong=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-4 small ">
+                        <span>Tủ lạnh: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.opt_tulanh=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                    <div class="col-4 small">
+                        <span>Tivi: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.opt_tivi=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                    <div class="col-4 small ">
+                        <span>Máy giặt: </span><span class="fw-bold"><%= room.room_info.opt_maygiat %></span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-4 small ">
+                        <span>Kệ bếp: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.opt_bep=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                    <div class="col-4 small">
+                        <span>Bồn rửa chén: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.opt_bonruachen=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                    <div class="col-4 small ">
+                        <span>Nước nóng: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.opt_nuocnong=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-4 small ">
+                        <span>Giường: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.opt_giuong=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                    <div class="col-4 small">
+                        <span>Nệm: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.opt_nem=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                    <div class="col-4 small ">
+                        <span>Tủ quần áo: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.opt_tuquanao=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-4 small ">
+                        <span>chủ: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.opt_ban=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                    <div class="col-4 small">
+                        <span>Thang máy: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.opt_elevator=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                    <div class="col-4 small ">
+                        <span>Bảo vệ: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.opt_bve=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-4 small ">
+                        <span>Máy lạnh: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.mlanh=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                    <div class="col-4 small">
+                        <span>Giếng trời: </span>
+                        <span class="text-color fw-bold"><%= room.room_info.gitroi=="Y" ? "✔" : "✘" %></span>
+                    </div>
+                    <div class="col-4 small ">
+
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 small ">
+                        <span>Nuôi thú cưng: </span><span class="fw-bold"><%= room.room_info.opt_pet %></span>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12 small ">
+                        <span class="text-danger text-decoration-underline">Nhận xe điện:</span>
+                        <span class="text-danger" style="white-space: pre-line;line-height: 12px;"><%= room.nhan_xe_dien %></span>
+                    </div>
+
+                </div>
+
+                <div class="row">
+                    <div class="col-12 small ">
+                        <span>Ghi chú: </span>
+                        <p class="fw-bold" style="white-space: pre-line;line-height: 12px;"><%= room.room_info.info_remark %></p>
+                    </div>
+                </div>
+
+
+                <div class="row">
+                    <div class="col-12 small ">
+                        <span class="text-danger text-decoration-underline">Tiện ích xung quanh:</span>
+                        <p class="text-danger" style="white-space: pre-line;line-height: 12px;"><%= room.room_info.tien_ich_xq %></p>
+                    </div>
+
+                </div>
+
+                <div class="row">
+                    <div class="col-12 small">
+                        <span>Trạng thái: </span><span class="fw-bolder"><%= room.status_desc %></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="position: relative;">
+            <span class="fw-bolder fs-6 text-danger text-uppercase" style="position: absolute;right: 5px;bottom: 20px;"><%= room.partner_name %></span> 
+        </div>
+    </div>
+</div>
