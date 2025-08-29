@@ -6,11 +6,15 @@ import { fileURLToPath } from "url";
 import crypto from "crypto";
 import multer from "multer";
 import fetchChotot from "./fetchChotot.js";
+import cron from "node-cron";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.static("public-chotot"));
+
+// Định nghĩa dataDir ở scope global
+const dataDir = path.join(__dirname, "public-chotot/data");
 
 // Cấu hình multer cho upload file
 const upload = multer({ 
@@ -21,7 +25,7 @@ const upload = multer({
     }
 });
 
-app.get("/", (req, res) => {
+app.get("/upload", (req, res) => {
     res.send(`
         <!DOCTYPE html>
         <html>
@@ -81,12 +85,11 @@ app.get("/", (req, res) => {
     `);
 });
 
-fetchChotot();
+// fetchChotot();
 
 // Khi khởi động server: tải regions và wards theo area, lưu vào public-chotot/data/regions.json
 (async () => {
     try {
-        const dataDir = path.join(__dirname, "public-chotot/data");
         const regionsFile = path.join(dataDir, "regions.json");
         if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
@@ -299,5 +302,15 @@ app.get("/api/demo-phone", async (req, res) => {
             error: err?.message || String(err), 
             data: err?.response?.data 
         });
+    }
+});
+
+cron.schedule('* * * * *', async () => {
+    try {
+        console.log("Đang gọi url thành công lúc", new Date().toLocaleString());
+        await axios.get('https://nhatot.onrender.com/');
+        console.log('Đã gọi url thành công lúc', new Date().toLocaleString());
+    } catch (err) {
+        console.error('Lỗi khi gọi url:', err.message);
     }
 });
