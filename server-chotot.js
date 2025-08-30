@@ -121,8 +121,8 @@ app.get("/upload", (req, res) => {
             await new Promise(r => setTimeout(r, 300));
         }
 
-        // 4) Lưu toàn bộ cấu trúc (có wards) xuống file
-        fs.writeFileSync(regionsFile, JSON.stringify(regions, null, 2), "utf-8");
+        // 4) Lưu toàn bộ cấu trúc (có wards) xuống file dạng minified
+        fs.writeFileSync(regionsFile, JSON.stringify(regions), "utf-8");
         console.log(`✅ Đã lưu regions + wards vào ${regionsFile}`);
     } catch (err) {
         console.error("❌ Lỗi khi khởi tạo regions/wards:", err?.message || err);
@@ -185,9 +185,9 @@ app.post("/upload-ads", upload.single('adsFile'), (req, res) => {
             fs.mkdirSync(dataDir, { recursive: true });
         }
 
-        // Ghi file ads.json
+        // Ghi file ads.json dạng minified
         const targetPath = path.join(dataDir, "ads.json");
-        fs.writeFileSync(targetPath, JSON.stringify(jsonData, null, 2), 'utf8');
+        fs.writeFileSync(targetPath, JSON.stringify(jsonData), 'utf8');
 
         // Xóa file tạm
         fs.unlinkSync(tempPath);
@@ -226,19 +226,55 @@ app.get("/download-ads", (req, res) => {
     }
 });
 
-// GET /api/ads -> Trả về dữ liệu ads.json
+// GET /api/ads -> Trả về dữ liệu từ tất cả các file area
 app.get("/api/ads", (req, res) => {
     try {
-        const adsFilePath = path.join(dataDir, "ads.json");
-        
-        if (!fs.existsSync(adsFilePath)) {
-            return res.status(404).json({ error: "File ads.json không tồn tại" });
+        if (!fs.existsSync(dataDir)) {
+            return res.status(404).json({ error: "Thư mục data không tồn tại" });
         }
 
-        const data = JSON.parse(fs.readFileSync(adsFilePath, "utf-8"));
-        res.json(data);
+        // Đọc tất cả file ads-*.json
+        const files = fs.readdirSync(dataDir).filter(file => file.startsWith('ads-') && file.endsWith('.json'));
+        
+        if (files.length === 0) {
+            return res.status(404).json({ error: "Không có file ads nào tồn tại" });
+        }
+
+        let allAds = [];
+        const areaStats = {};
+
+        for (const file of files) {
+            try {
+                const filePath = path.join(dataDir, file);
+                const areaId = file.replace('ads-', '').replace('.json', '');
+                const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+                
+                if (Array.isArray(data)) {
+                    allAds = allAds.concat(data);
+                    areaStats[areaId] = data.length;
+                }
+            } catch (err) {
+                console.error(`Lỗi đọc file ${file}:`, err.message);
+            }
+        }
+
+        // Merge và loại bỏ duplicate theo ad_id
+        const uniqueAds = [];
+        const seenIds = new Set();
+        
+        for (const ad of allAds) {
+            if (ad.ad_id && !seenIds.has(ad.ad_id)) {
+                seenIds.add(ad.ad_id);
+                uniqueAds.push(ad);
+            }
+        }
+
+        console.log(`📊 API /api/ads: ${files.length} files, ${allAds.length} total ads, ${uniqueAds.length} unique ads`);
+        console.log(`📊 Area stats:`, areaStats);
+
+        res.json(uniqueAds);
     } catch (err) {
-        res.status(500).json({ error: "Lỗi đọc ads.json: " + err.message });
+        res.status(500).json({ error: "Lỗi đọc ads: " + err.message });
     }
 });
 

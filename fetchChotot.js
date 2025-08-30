@@ -11,6 +11,8 @@ const __dirname = path.dirname(__filename);
 const BASE_URL = "https://gateway.chotot.com/v1/public/ad-listing";
 // Thứ tự area cần crawl luân phiên
 const areaOrder = [
+    "13110",
+    "13107",
     "13119",
     "13096",
     "13098",
@@ -21,10 +23,8 @@ const areaOrder = [
     "13103",
     "13105",
     "13106",
-    "13107",
     "13108",
     "13109",
-    "13110",
     "13111",
     "13112",
     "13113",
@@ -37,7 +37,7 @@ const areaOrder = [
 let areaIndex = 0;
 const PARAMS = {
     region_v2: "13000",
-    area_v2: "13110", 
+    area_v2: "13110",
     cg: "1050",
     limit: "50",
     // f: "p",
@@ -45,7 +45,7 @@ const PARAMS = {
 };
 
 const dataDir = path.join(__dirname, "public-chotot/data");
-const dataFile = path.join(dataDir, "ads.json");
+// Không cần dataFile nữa, sẽ lưu theo từng area
 
 // RSA Public Key để mã hóa list_id
 const RSAPublicKey = {
@@ -54,9 +54,12 @@ const RSAPublicKey = {
 
 let isRunning = false;
 
-function ensureDataFile() {
+function ensureDataDir() {
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-    if (!fs.existsSync(dataFile)) fs.writeFileSync(dataFile, "[]", "utf-8");
+}
+
+function getAreaFile(areaId) {
+    return path.join(dataDir, `ads-${areaId}.json`);
 }
 
 
@@ -75,7 +78,7 @@ async function getPhoneNumber(listId) {
         const e = encryptToE(listId);
         const url = `https://gateway.chotot.com/v1/public/ad-listing/phone?e=${e}`;
         const response = await axios.get(url, { timeout: 15000 });
-        
+
         if (response && response?.data && response?.data?.phone) {
             countGetPhoneFailed = 0;
             return response.data.phone;
@@ -85,28 +88,34 @@ async function getPhoneNumber(listId) {
         if (err.status == 429) {
             countGetPhoneFailed++;
         }
+        if (err?.status == 404 && err?.response?.data?.message?.includes(listId)) {
+            return "Số bị ẩn do hết hạn";
+        }
         console.error(`❌ Lỗi lấy phone cho list_id ${listId}:`, err?.message || err);
         return null;
     }
 }
 
-async function safeWriteFile(data) {
+async function safeWriteFile(data, areaId) {
     try {
+        const areaFile = getAreaFile(areaId);
         // Tạo file tạm trước
-        const tempFile = dataFile + '.tmp';
-        fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), "utf-8");
-        
+        const tempFile = areaFile + '.tmp';
+        // Lưu dạng minified để giảm kích thước file
+        fs.writeFileSync(tempFile, JSON.stringify(data), "utf-8");
+
         // Đổi tên file tạm thành file chính (atomic operation)
-        fs.renameSync(tempFile, dataFile);
+        fs.renameSync(tempFile, areaFile);
         return true;
     } catch (err) {
         console.error("❌ Lỗi ghi file:", err?.message || err);
         // Xóa file tạm nếu có
         try {
-            if (fs.existsSync(dataFile + '.tmp')) {
-                fs.unlinkSync(dataFile + '.tmp');
+            const areaFile = getAreaFile(areaId);
+            if (fs.existsSync(areaFile + '.tmp')) {
+                fs.unlinkSync(areaFile + '.tmp');
             }
-        } catch {}
+        } catch { }
         return false;
     }
 }
@@ -129,29 +138,30 @@ function mergeNonNull(oldObj, newObj) {
 
 let countGetPhoneFailed = 0;
 
-async function mergeByAdId(newAds) {
-    // Đọc lại file ads.json mới nhất mỗi lần merge
+async function mergeByAdId(newAds, areaId) {
+    // Đọc lại file ads-{areaId}.json mới nhất mỗi lần merge
     let existingAds = [];
     try {
-        if (fs.existsSync(dataFile)) {
-            const fileContent = fs.readFileSync(dataFile, "utf-8");
+        const areaFile = getAreaFile(areaId);
+        if (fs.existsSync(areaFile)) {
+            const fileContent = fs.readFileSync(areaFile, "utf-8");
             existingAds = JSON.parse(fileContent);
             if (!Array.isArray(existingAds)) {
                 existingAds = [];
             }
         }
     } catch (err) {
-        console.error("❌ Lỗi đọc file ads.json:", err?.message || err);
+        console.error(`❌ Lỗi đọc file ads-${areaId}.json:`, err?.message || err);
         existingAds = [];
     }
-    
+
     const map = new Map(existingAds.map(ad => [ad.ad_id, ad]));
-    
+
     for (const ad of newAds) {
         const existing = map.get(ad.ad_id) || {};
         const merged = mergeNonNull(existing, ad);
-        
-        // Kiểm tra và lấy phone nếu cần
+
+        // // Kiểm tra và lấy phone nếu cần
         if (!merged.phone && !merged.company_ad && !merged.phone_hidden && merged.list_id && countGetPhoneFailed < 3) {
             console.log(`📞 Đang lấy phone cho ad_id ${merged.ad_id} (list_id: ${merged.list_id})...`);
             const phone = await getPhoneNumber(merged.list_id);
@@ -162,12 +172,26 @@ async function mergeByAdId(newAds) {
                 console.log(`❌ Không lấy được phone cho ad_id ${merged.ad_id}`);
             }
             // Delay nhẹ giữa các request phone để tránh bị block
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        } else if (countGetPhoneFailed >= 3) {
+            // Gửi webhook bất đồng bộ và không chờ kết quả để tránh ngắt terminal
+            fetch("https://pushmore.io/webhook/uYssJKQjzGF5D1W1ZmZPctvK", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: `${merged.ad_id} | ${merged.phone}`
+            })
+            .then(() => {
+                console.log(`✅ Webhook sent for ad_id ${merged.ad_id}`);
+            })
+            .catch((err) => {
+                console.error(`❌ Lỗi gửi webhook cho ad_id ${merged.ad_id}:`, err?.message || err);
+                // Không throw error để tránh ngắt terminal
+            });
         }
-        
+
         map.set(ad.ad_id, merged);
     }
-    
+
     return Array.from(map.values());
 }
 
@@ -175,7 +199,7 @@ async function fetchPage(page) {
     const limit = parseInt(PARAMS.limit);
     const offset = (page - 1) * limit;
     const url = `${BASE_URL}?${new URLSearchParams({
-        ...PARAMS, 
+        ...PARAMS,
         page: page.toString(),
         o: offset.toString()
     })}`;
@@ -189,44 +213,44 @@ async function fetchAllPages() {
         console.log("⏸️ Bỏ qua crawl - cron job trước chưa xong");
         return;
     }
-    
 
-    
+
+
     isRunning = true;
-    
+
     try {
         // Chọn area hiện tại và cập nhật tham số
         const currentArea = areaOrder[areaIndex % areaOrder.length];
         PARAMS.area_v2 = currentArea;
         console.log(`🌐 Crawl khu vực area_v2=${currentArea} (index ${areaIndex % areaOrder.length})`);
-        ensureDataFile();
+        ensureDataDir();
 
         // Lấy page 1 để biết total
         const firstPage = await fetchPage(1);
         const total = firstPage.total || 0;
         const limit = parseInt(PARAMS.limit);
         const totalPages = Math.ceil(total / limit);
-        
+
         console.log(`📊 Tổng: ${total} ads, ${totalPages} pages, limit: ${limit}`);
-        
+
         let allAds = [...(firstPage.ads || [])];
-        
+
         // Save page 1 ngay - mergeByAdId sẽ tự đọc file mới nhất
-        const merged1 = await mergeByAdId(allAds);
-        if (safeWriteFile(merged1)) {
+        const merged1 = await mergeByAdId(allAds, currentArea);
+        if (safeWriteFile(merged1, currentArea)) {
             console.log(`💾 Page 1: ${firstPage.ads?.length || 0} ads, saved => ${merged1.length} total`);
         }
-        
+
         // Crawl từ page 2 đến hết, save sau mỗi page
         for (let page = 2; page <= totalPages; page++) {
             try {
                 const pageData = await fetchPage(page);
                 if (pageData.ads && pageData.ads.length > 0) {
                     allAds = [...allAds, ...pageData.ads];
-                    
+
                     // Save sau mỗi page - mergeByAdId sẽ tự đọc file mới nhất
-                    const merged = await mergeByAdId(allAds);
-                    if (safeWriteFile(merged)) {
+                    const merged = await mergeByAdId(allAds, currentArea);
+                    if (safeWriteFile(merged, currentArea)) {
                         console.log(`💾 Page ${page}: ${pageData.ads.length} ads, saved => ${merged.length} total`);
                     }
                 }
@@ -236,12 +260,12 @@ async function fetchAllPages() {
                 console.error(`❌ Lỗi page ${page}:`, err?.message || err);
             }
         }
-        
+
         console.log(`✅ Chotot: Hoàn thành crawl ${totalPages} pages, tổng ${allAds.length} ads`);
         // Tăng index để lần cron tiếp theo chuyển sang khu vực kế tiếp
         areaIndex = (areaIndex + 1) % areaOrder.length;
         countGetPhoneFailed = 0;
-        
+
     } catch (err) {
         console.error("❌ Lỗi fetch Chợ Tốt:", err?.message || err);
     } finally {
@@ -269,6 +293,6 @@ process.on('SIGTERM', () => {
     await fetchAllPages();
 })();
 
-export default () => {};
+export default () => { };
 
 

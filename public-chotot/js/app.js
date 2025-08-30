@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     async function loadAds() {
         try {
-            const res = await fetch("/data/ads.json");
+            const res = await fetch("/api/ads");
             allAds = await res.json();
             
             // Cập nhật tổng số
