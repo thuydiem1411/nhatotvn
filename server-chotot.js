@@ -124,6 +124,9 @@ app.get("/upload", (req, res) => {
         // 4) Lưu toàn bộ cấu trúc (có wards) xuống file dạng minified
         fs.writeFileSync(regionsFile, JSON.stringify(regions), "utf-8");
         console.log(`✅ Đã lưu regions + wards vào ${regionsFile}`);
+        
+        // 5) Khởi tạo cron job crawl Chợ Tốt sau khi regions đã sẵn sàng
+        // fetchChotot(); // Không cần await vì chỉ khởi tạo cron job
     } catch (err) {
         console.error("❌ Lỗi khi khởi tạo regions/wards:", err?.message || err);
     }

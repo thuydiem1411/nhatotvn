@@ -13,26 +13,26 @@ const BASE_URL = "https://gateway.chotot.com/v1/public/ad-listing";
 const areaOrder = [
     "13110",
     "13107",
-    "13119",
-    "13096",
-    "13098",
-    "13099",
-    "13100",
-    "13101",
-    "13102",
-    "13103",
-    "13105",
-    "13106",
-    "13108",
-    "13109",
-    "13111",
     "13112",
-    "13113",
-    "13115",
-    "13120",
-    "13116",
-    "13117",
-    "13118"
+    "13111",
+    "13109",
+    // "13119",
+    // "13096",
+    // "13098",
+    // "13099",
+    // "13100",
+    // "13101",
+    // "13102",
+    // "13103",
+    // "13105",
+    // "13106",
+    // "13108",
+    // "13113",
+    // "13115",
+    // "13120",
+    // "13116",
+    // "13117",
+    // "13118"
 ];
 let areaIndex = 0;
 const PARAMS = {
@@ -172,7 +172,7 @@ async function mergeByAdId(newAds, areaId) {
                 console.log(`❌ Không lấy được phone cho ad_id ${merged.ad_id}`);
             }
             // Delay nhẹ giữa các request phone để tránh bị block
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 2000));
         } else if (countGetPhoneFailed >= 3) {
             // Gửi webhook bất đồng bộ và không chờ kết quả để tránh ngắt terminal
             fetch("https://pushmore.io/webhook/uYssJKQjzGF5D1W1ZmZPctvK", {
@@ -273,9 +273,10 @@ async function fetchAllPages() {
     }
 }
 
-cron.schedule("*/10 * * * * *", async () => {
-    await fetchAllPages();
-});
+// Cron job được khởi tạo trong initCronJob()
+// cron.schedule("* * * * * *", async () => {
+//     await fetchAllPages();
+// });
 
 // Cleanup khi process exit
 process.on('SIGINT', () => {
@@ -288,11 +289,20 @@ process.on('SIGTERM', () => {
     process.exit(0);
 });
 
-(async () => {
-    console.log("🚀 Bắt đầu crawl Chợ Tốt...");
-    await fetchAllPages();
-})();
+// (async () => {
+//     console.log("🚀 Bắt đầu crawl Chợ Tốt...");
+//     await fetchAllPages();
+// })();
 
-export default () => { };
+// Function để khởi tạo cron job (không chạy crawl ngay)
+function initCronJob() {
+    console.log("⏰ Khởi tạo cron job crawl Chợ Tốt...");
+    // Cron job sẽ tự động chạy mỗi giây
+    cron.schedule("59 * * * * *", async () => {
+        await fetchAllPages();
+    });
+}
+
+export default initCronJob;
 
 

@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", async function () {
     const listEl = document.getElementById("ads-list");
-    const sortEl = document.getElementById("sort-price");
+    const sortEl = document.getElementById("sort");
     const filterAreaEl = document.getElementById("filter-area");
     const filterWardEl = document.getElementById("filter-ward");
     const filterCompanyEl = document.getElementById("filter-company");
@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
     const modalContent = document.getElementById('modalContent');
     const scrollTopBtn = document.getElementById('scrollTopBtn');
-    
+
     let allAds = [];
     let displayedCount = 20;
     let isLoading = false;
@@ -19,10 +19,10 @@ document.addEventListener("DOMContentLoaded", async function () {
         try {
             const res = await fetch("/api/ads");
             allAds = await res.json();
-            
+
             // Cập nhật tổng số
             document.getElementById('total-count').textContent = allAds.length;
-            
+
             render();
         } catch (e) {
             console.error("Lỗi load ads:", e);
@@ -73,10 +73,11 @@ document.addEventListener("DOMContentLoaded", async function () {
         return (Number(amount) || 0).toLocaleString('vi-VN') + ' đ';
     }
 
+    // Convert timestamp to datetime
     function formatDate(timestamp) {
         if (!timestamp) return '';
         const date = new Date(timestamp);
-        return date.toLocaleDateString('vi-VN');
+        return date.toLocaleString('vi-VN');
     }
 
     function render() {
@@ -134,13 +135,15 @@ document.addEventListener("DOMContentLoaded", async function () {
         const sorted = [...filteredAds].sort((a, b) => {
             const pa = parsePrice(a);
             const pb = parsePrice(b);
-            if (sortVal === 'asc') return pa - pb;
-            if (sortVal === 'desc') return pb - pa;
+            if (sortVal === 'price-asc') return pa - pb;
+            if (sortVal === 'price-desc') return pb - pa;
+            if (sortVal === 'newest') return b.list_time - a.list_time;
+            if (sortVal === 'oldest') return a.list_time - b.list_time;
             return 0;
         });
 
         // Cập nhật tổng số hiển thị
-        document.getElementById('total-count').textContent = searchTerm.trim() ? 
+        document.getElementById('total-count').textContent = searchTerm.trim() ?
             `${filteredAds.length}/${allAds.length}` : allAds.length;
 
         // Chỉ hiển thị số lượng đã định
@@ -148,8 +151,8 @@ document.addEventListener("DOMContentLoaded", async function () {
 
         listEl.innerHTML = displayAds.map(ad => `
             <div class="col-md-4 col-lg-3 col-xl-3 mb-2">
-                <div class="card h-100 ${ad.company_ad === true ? 'agent' : ''}" data-ad-id="${ad.ad_id}" onclick="openDetailModal('${ad.ad_id}')">
-                    <div class="image-container">
+                <div class="card h-100 ${ad.company_ad === true ? 'agent' : ''}"">
+                    <div class="image-container" data-ad-id="${ad.ad_id}" onclick="openDetailModal('${ad.ad_id}')">
                         <img src="${ad.image || ad.webp_image || 'https://via.placeholder.com/300x180?text=No+Image'}" 
                              alt="thumb" class="card-img-top" 
                              style="height: 180px; object-fit: cover;" 
@@ -164,7 +167,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                             <span class="price-badge">${ad.price_string || formatMoneyVND(ad.price)}</span>
                             <small class="text-muted d-flex align-items-center gap-1">
                                 ${ad.company_ad === true ? '<span class="badge-agent">Môi giới</span>' : ''}
-                                <i class="mdi mdi-clock"></i> ${ad.date || formatDate(ad.list_time)}
+                                <i class="mdi mdi-clock"></i> ${formatDate(ad.list_time)}
                             </small>
                         </div>
                         
@@ -175,7 +178,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                         <div class="info-grid-compact">
                             <div class="info-item-compact">
                                 <i class="mdi mdi-map-marker"></i>
-                                <span>${ad.area_name || ''}${ad.ward_name ? ', ' + ad.ward_name : ''}</span>
+                                <span>${[ad?.street_number, ad?.street_name, ad?.ward_name, ad?.area_name].filter(Boolean).join(', ')}</span>
                             </div>
                             <div class="info-item-compact">
                                 <i class="mdi mdi-home"></i>
@@ -196,13 +199,17 @@ document.addEventListener("DOMContentLoaded", async function () {
                                 ${ad.body ? ad.body.substring(0, 60) + '...' : 'Không có mô tả'}
                             </small>
                         </div>
+
+                        <div class="mt-2">
+                            <div id="map-${ad.ad_id}" class="leaflet-map" style="height: 200px; width: 100%; border-radius: 4px;"></div>
+                        </div>
                     </div>
                 </div>
             </div>
-        `).join('') + 
-        
-        // Thêm loading indicator nếu còn ads chưa hiển thị
-        (displayedCount < sorted.length ? `
+        `).join('') +
+
+            // Thêm loading indicator nếu còn ads chưa hiển thị
+            (displayedCount < sorted.length ? `
             <div class="col-12 text-center mt-2">
                 <div class="spinner-border spinner-border-sm text-primary" role="status">
                     <span class="visually-hidden">Đang tải thêm...</span>
@@ -212,12 +219,43 @@ document.addEventListener("DOMContentLoaded", async function () {
                 </div>
             </div>
         ` : '');
+        
+        // Khởi tạo maps sau khi render
+        setTimeout(() => {
+            initializeMaps();
+        }, 100);
+    }
+
+    // Hàm khởi tạo Leaflet map cho các card
+    function initializeMaps() {
+        const mapElements = document.querySelectorAll('.leaflet-map');
+        mapElements.forEach(mapEl => {
+            const adId = mapEl.id.replace('map-', '');
+            const ad = allAds.find(a => a.ad_id == adId);
+            
+            if (ad && ad.location) {
+                try {
+                    const [lat, lng] = ad.location.split(',').map(Number);
+                    if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+                        const map = L.map(mapEl.id).setView([lat, lng], 15);
+                        
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '© OpenStreetMap contributors'
+                        }).addTo(map);
+                        
+                        L.marker([lat, lng]).addTo(map);
+                    }
+                } catch (e) {
+                    console.warn(`Lỗi khởi tạo map cho ad ${adId}:`, e);
+                }
+            }
+        });
     }
 
     // Hàm load thêm ads
     function loadMore() {
         if (isLoading || displayedCount >= allAds.length) return;
-        
+
         isLoading = true;
         displayedCount += 20;
         render();
@@ -265,10 +303,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
 
     // Hàm mở modal detail
-    window.openDetailModal = function(adId) {
+    window.openDetailModal = function (adId) {
         currentAd = allAds.find(ad => ad.ad_id == adId);
         if (!currentAd) return;
-        
+
         const images = currentAd.images || [];
         const hasImages = images.length > 0;
         let carouselHtml = '';
@@ -311,7 +349,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                             </div>
                             <div class="info-item">
                                 <i class="mdi mdi-calendar"></i>
-                                <span>${currentAd.date || formatDate(currentAd.list_time)}</span>
+                                <span>${formatDate(currentAd.list_time)}</span>
                             </div>
                         </div>
                     </div>
@@ -342,6 +380,10 @@ document.addEventListener("DOMContentLoaded", async function () {
                                 <span>${currentAd.full_name || currentAd.account_name || 'N/A'}</span>
                             </div>
                             <div class="info-item">
+                                <i class="mdi mdi-phone"></i>
+                                <span><a href="tel:${currentAd.phone || 'N/A'}">${currentAd.phone || 'N/A'}</a></span>
+                            </div>
+                            <div class="info-item">
                                 <i class="mdi mdi-star"></i>
                                 <span>Đánh giá: ${currentAd.average_rating || 'N/A'}/5</span>
                             </div>
@@ -365,7 +407,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                             </div>
                             <div class="info-item">
                                 <i class="mdi mdi-calendar-clock"></i>
-                                <span>Đăng: ${formatDate(currentAd.orig_list_time)}</span>
+                                <span>Đăng: ${formatDate(currentAd.list_time)}</span>
                             </div>
                         </div>
                     </div>
@@ -381,7 +423,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                 </div>
             </div>
         `;
-        
+
         detailModal.show();
 
         // Bind fancybox and manage z-index/backdrop while open
