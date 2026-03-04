@@ -8,6 +8,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     <style>
         body {
             background: #f8f9fa;
@@ -15,7 +17,6 @@
         .card {
             transition: all 0.3s ease;
             border: 1px solid #e0e0e0;
-            cursor: pointer;
             overflow: hidden;
             border-radius: 8px;
         }
@@ -60,6 +61,7 @@
         .image-container {
             position: relative;
             overflow: hidden;
+            cursor: pointer;
         }
         .image-overlay {
             position: absolute;
@@ -80,6 +82,23 @@
         .image-overlay i {
             color: white;
             font-size: 1.5rem;
+        }
+        .backup-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(40, 167, 69, 0.9);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            z-index: 10;
+        }
+        .backup-badge i {
+            font-size: 0.9rem;
         }
         .modal-xl {
             max-width: 95%;
@@ -220,9 +239,18 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <select id="filter-ward" class="form-select form-select-sm" disabled>
+                <select id="filter-ward" class="form-select form-select-sm" multiple disabled>
                     <option value="">Chọn Phường/Xã</option>
                 </select>
+            </div>
+            <div class="col-md-3">
+                <div class="d-flex flex-column gap-1">
+                    <input id="price-range-display" class="form-control form-control-sm" type="text" readonly placeholder="Khoảng giá (đ)">
+                    <div class="d-flex align-items-center gap-2">
+                        <input id="price-min" class="form-range" type="range" min="0" max="10000000" step="500000" value="2000000" style="flex:1;">
+                        <input id="price-max" class="form-range" type="range" min="0" max="10000000" step="500000" value="4000000" style="flex:1;">
+                    </div>
+                </div>
             </div>
             <div class="col-md-2">
                 <select id="filter-company" class="form-select form-select-sm">
@@ -235,6 +263,31 @@
                 <small class="text-muted">
                     <span id="total-count">Đang tải...</span> tin đăng
                 </small>
+            </div>
+        </div>
+        
+        <!-- Bản đồ Leaflet và điều khiển Focus -->
+        <div class="row g-2 mb-2">
+            <div class="col-12">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <input type="text" id="focus-coord" class="form-control form-control-sm" style="max-width: 280px;" placeholder="VD: 10.855428829746335, 106.6349684227492">
+                    <div class="input-group input-group-sm" style="width: 180px;">
+                        <input type="number" id="focus-radius" class="form-control" value="2" min="0" step="0.5">
+                        <span class="input-group-text">km</span>
+                    </div>
+                    <button type="button" id="focus-btn" class="btn btn-sm btn-primary">
+                        <i class="mdi mdi-crosshairs-gps"></i> Focus
+                    </button>
+                    <button type="button" id="clear-focus-btn" class="btn btn-sm btn-outline-secondary" style="display: none;">
+                        <i class="mdi mdi-close-circle"></i> Clear Focus
+                    </button>
+                    <small class="text-muted">
+                        <i class="mdi mdi-information"></i> Right-click trên bản đồ để chọn tọa độ
+                    </small>
+                </div>
+            </div>
+            <div class="col-12">
+                <div id="ads-map" style="height: 600px; border-radius: 6px; overflow: hidden; border: 1px solid #e0e0e0;"></div>
             </div>
         </div>
         
@@ -274,8 +327,12 @@
     </button>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox.umd.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="/js/app.js"></script>
 </body>
  </html>

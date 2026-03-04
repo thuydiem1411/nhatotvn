@@ -7,6 +7,8 @@ import crypto from "crypto";
 import multer from "multer";
 import fetchChotot from "./fetchChotot.js";
 import cron from "node-cron";
+import { backupAdImages, batchBackupAdsFromFile } from "./imageBackup.js";
+import { cloudinaryAccounts } from "./cloudinaryConfig.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -126,7 +128,7 @@ app.get("/upload", (req, res) => {
         console.log(`✅ Đã lưu regions + wards vào ${regionsFile}`);
         
         // 5) Khởi tạo cron job crawl Chợ Tốt sau khi regions đã sẵn sàng
-        // fetchChotot(); // Không cần await vì chỉ khởi tạo cron job
+        fetchChotot(); // Không cần await vì chỉ khởi tạo cron job
     } catch (err) {
         console.error("❌ Lỗi khi khởi tạo regions/wards:", err?.message || err);
     }
@@ -229,60 +231,211 @@ app.get("/download-ads", (req, res) => {
     }
 });
 
-// GET /api/ads -> Trả về dữ liệu từ tất cả các file area
-app.get("/api/ads", (req, res) => {
+// GET /api/ads -> Stream data from all area files using createReadStream
+app.get("/api/ads", async (req, res) => {
     try {
         if (!fs.existsSync(dataDir)) {
             return res.status(404).json({ error: "Thư mục data không tồn tại" });
         }
 
-        // Đọc tất cả file ads-*.json
+        // Read all ads-*.json files
         const files = fs.readdirSync(dataDir).filter(file => file.startsWith('ads-') && file.endsWith('.json'));
         
         if (files.length === 0) {
             return res.status(404).json({ error: "Không có file ads nào tồn tại" });
         }
 
-        let allAds = [];
+        // Set headers for streaming JSON array
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Transfer-Encoding', 'chunked');
+        
+        // Start JSON array
+        res.write('[');
+        
+        const seenIds = new Set();
         const areaStats = {};
+        let totalAds = 0;
+        let uniqueAds = 0;
+        let isFirstAd = true;
 
+        // Process each file sequentially
         for (const file of files) {
             try {
                 const filePath = path.join(dataDir, file);
                 const areaId = file.replace('ads-', '').replace('.json', '');
-                const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
                 
-                if (Array.isArray(data)) {
-                    allAds = allAds.concat(data);
-                    areaStats[areaId] = data.length;
-                }
+                // Read file using stream
+                await new Promise((resolve, reject) => {
+                    let buffer = '';
+                    const stream = fs.createReadStream(filePath, { encoding: 'utf-8', highWaterMark: 64 * 1024 });
+                    
+                    stream.on('data', (chunk) => {
+                        buffer += chunk;
+                    });
+                    
+                    stream.on('end', () => {
+                        try {
+                            const data = JSON.parse(buffer);
+                            
+                            if (Array.isArray(data)) {
+                                areaStats[areaId] = data.length;
+                                totalAds += data.length;
+                                
+                                // Stream each ad one by one
+                                for (const ad of data) {
+                                    if (ad.ad_id && !seenIds.has(ad.ad_id)) {
+                                        seenIds.add(ad.ad_id);
+                                        uniqueAds++;
+                                        
+                                        // Add comma separator for all ads except the first one
+                                        if (!isFirstAd) {
+                                            res.write(',');
+                                        }
+                                        isFirstAd = false;
+                                        
+                                        // Stream the ad as JSON
+                                        res.write(JSON.stringify(ad));
+                                    }
+                                }
+                            }
+                            resolve();
+                        } catch (parseErr) {
+                            console.error(`Lỗi parse JSON file ${file}:`, parseErr.message);
+                            resolve();
+                        }
+                    });
+                    
+                    stream.on('error', (err) => {
+                        console.error(`Lỗi đọc stream file ${file}:`, err.message);
+                        resolve();
+                    });
+                });
+                
             } catch (err) {
-                console.error(`Lỗi đọc file ${file}:`, err.message);
+                console.error(`Lỗi xử lý file ${file}:`, err.message);
             }
         }
 
-        // Merge và loại bỏ duplicate theo ad_id
-        const uniqueAds = [];
-        const seenIds = new Set();
-        
-        for (const ad of allAds) {
-            if (ad.ad_id && !seenIds.has(ad.ad_id)) {
-                seenIds.add(ad.ad_id);
-                uniqueAds.push(ad);
-            }
-        }
+        // Close JSON array
+        res.write(']');
+        res.end();
 
-        console.log(`📊 API /api/ads: ${files.length} files, ${allAds.length} total ads, ${uniqueAds.length} unique ads`);
+        console.log(`📊 API /api/ads: ${files.length} files, ${totalAds} total ads, ${uniqueAds} unique ads`);
         console.log(`📊 Area stats:`, areaStats);
-
-        res.json(uniqueAds);
+        
     } catch (err) {
-        res.status(500).json({ error: "Lỗi đọc ads: " + err.message });
+        if (!res.headersSent) {
+            res.status(500).json({ error: "Lỗi đọc ads: " + err.message });
+        } else {
+            res.end();
+        }
     }
 });
 
-app.listen(3001, () => {
-    console.log("Chotot server chạy cổng 3001");
+// POST /api/backup-images - Backup images for specific ad
+app.post("/api/backup-images", express.json(), async (req, res) => {
+    try {
+        const { ad_id, file } = req.body;
+        
+        if (!ad_id || !file) {
+            return res.status(400).json({ error: "Missing ad_id or file parameter" });
+        }
+        
+        const filePath = path.join(dataDir, file);
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: "File not found" });
+        }
+        
+        // Read ads
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        const ads = Array.isArray(data) ? data : [];
+        const ad = ads.find(a => a.ad_id == ad_id);
+        
+        if (!ad) {
+            return res.status(404).json({ error: "Ad not found" });
+        }
+        
+        // Check if company ad
+        if (ad.company_ad === true) {
+            return res.status(400).json({ error: "Cannot backup company ads" });
+        }
+        
+        // Backup images
+        const result = await backupAdImages(ad);
+        
+        if (result.success) {
+            // Update ad with array of backup URLs
+            ad.imgs_bak = result.results;  // ["url1", "url2", ...]
+            
+            // Save back to file (minified)
+            fs.writeFileSync(filePath, JSON.stringify(ads), 'utf-8');
+            
+            return res.json({
+                success: true,
+                ad_id: ad.ad_id,
+                backed_up: result.backed_up,
+                total: result.total,
+                imgs_bak: ad.imgs_bak
+            });
+        } else {
+            return res.status(500).json({
+                success: false,
+                reason: result.reason
+            });
+        }
+        
+    } catch (error) {
+        console.error('Backup error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST /api/batch-backup - Batch backup all personal ads in a file
+app.post("/api/batch-backup", express.json(), async (req, res) => {
+    try {
+        const { file } = req.body;
+        
+        if (!file) {
+            return res.status(400).json({ error: "Missing file parameter" });
+        }
+        
+        const filePath = path.join(dataDir, file);
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: "File not found" });
+        }
+        
+        // Start backup in background
+        res.json({
+            success: true,
+            message: "Backup started in background",
+            file: file
+        });
+        
+        // Run backup async
+        batchBackupAdsFromFile(filePath).catch(err => {
+            console.error('Background backup error:', err);
+        });
+        
+    } catch (error) {
+        console.error('Batch backup error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET /api/cloudinary-status - Check Cloudinary accounts status
+app.get("/api/cloudinary-status", (req, res) => {
+    res.json({
+        accounts: cloudinaryAccounts.length,
+        details: cloudinaryAccounts.map(acc => ({
+            cloudName: acc.cloudName,
+            uploadCount: acc.uploadCount,
+            storageUsed: acc.storageUsed
+        }))
+    });
+});
+
+app.listen(3009, () => {
+    console.log("Chotot server chạy cổng 3009");
 });
 
 
@@ -346,9 +499,7 @@ app.get("/api/demo-phone", async (req, res) => {
 
 cron.schedule('* * * * *', async () => {
     try {
-        console.log("Đang gọi url thành công lúc", new Date().toLocaleString());
         await axios.get('https://nhatot.onrender.com/');
-        console.log('Đã gọi url thành công lúc', new Date().toLocaleString());
     } catch (err) {
         console.error('Lỗi khi gọi url:', err.message);
     }
