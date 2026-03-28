@@ -128,7 +128,13 @@ app.get("/upload", (req, res) => {
         console.log(`✅ Đã lưu regions + wards vào ${regionsFile}`);
         
         // 5) Khởi tạo cron job crawl Chợ Tốt sau khi regions đã sẵn sàng
-        fetchChotot(); // Không cần await vì chỉ khởi tạo cron job
+        const enableCronjob = process.env.ENABLE_CRONJOB === 'true';
+        if (enableCronjob) {
+            console.log('🔄 Cronjob enabled - Starting Chợ Tốt crawler...');
+            fetchChotot(); // Không cần await vì chỉ khởi tạo cron job
+        } else {
+            console.log('⏸️  Cronjob disabled - Skipping Chợ Tốt crawler (set ENABLE_CRONJOB=true to enable)');
+        }
     } catch (err) {
         console.error("❌ Lỗi khi khởi tạo regions/wards:", err?.message || err);
     }

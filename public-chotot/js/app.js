@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const filterAreaEl = document.getElementById("filter-area");
     const filterWardEl = document.getElementById("filter-ward");
     const filterCompanyEl = document.getElementById("filter-company");
+    const filterOnlyBackupImgEl = document.getElementById("filter-only-backup-img");
     const searchEl = document.getElementById("search-input");
     const detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
     const modalContent = document.getElementById('modalContent');
@@ -546,6 +547,14 @@ document.addEventListener("DOMContentLoaded", async function () {
         } else if (companyFilter === 'personal') {
             filteredAds = filteredAds.filter(ad => ad.company_ad !== true);
         }
+
+        // Only ads with at least one successfully backed-up image (imgs_bak entry with s === 'ok')
+        if (filterOnlyBackupImgEl?.checked) {
+            filteredAds = filteredAds.filter(
+                (ad) => Array.isArray(ad.imgs_bak) && ad.imgs_bak.some((img) => img && img.s === "ok")
+            );
+        }
+
         if (searchTerm.trim()) {
             const searchLower = searchTerm.toLowerCase();
             filteredAds = filteredAds.filter(ad => {
@@ -575,9 +584,14 @@ document.addEventListener("DOMContentLoaded", async function () {
             return 0;
         });
 
-        // Cập nhật tổng số hiển thị
-        document.getElementById('total-count').textContent = searchTerm.trim() ?
-            `${filteredAds.length}/${allAds.length}` : allAds.length;
+        // Update total count (show ratio when search or backup-only filter narrows the list)
+        const totalCountEl = document.getElementById("total-count");
+        const showRatio = searchTerm.trim() || filterOnlyBackupImgEl?.checked;
+        if (totalCountEl) {
+            totalCountEl.textContent = showRatio
+                ? `${filteredAds.length}/${allAds.length}`
+                : String(filteredAds.length);
+        }
 
         // Cập nhật bản đồ với toàn bộ danh sách đã lọc
         updateMapMarkers(filteredAds);
@@ -772,6 +786,13 @@ document.addEventListener("DOMContentLoaded", async function () {
         displayedCount = 20;
         render();
     });
+
+    if (filterOnlyBackupImgEl) {
+        filterOnlyBackupImgEl.addEventListener("change", () => {
+            displayedCount = 20;
+            render();
+        });
+    }
 
     // Hàm mở modal detail
     window.openDetailModal = function (adId) {
