@@ -1,0 +1,124 @@
+# Commands to Run - Multi-Category Implementation
+
+## 🔍 Step 1: Kiểm tra syntax (optional)
+
+node -c fetchChotot.js
+node -c server-chotot.js
+
+## 📝 Step 2: Migration data cũ (chỉ chạy 1 lần)
+
+# Nếu có file ads-{areaId}.json cũ, rename chúng thành ads-{areaId}-tro.json
+# Example cho PowerShell:
+cd public-chotot\data
+Get-ChildItem ads-*.json | Where-Object { $_.Name -notmatch '-(tro|nha)(-nobackup)?\.json$' } | ForEach-Object { Rename-Item $_.FullName ($_.Name -replace '\.json$', '-tro.json') }
+
+# Hoặc rename thủ công 1 file:
+# Rename-Item ads-13096.json ads-13096-tro.json
+
+## 🐍 Step 3: Chạy Python script để tách data
+
+# Quay về root folder
+cd ..\..
+
+# Process all files
+python split_ads_backup.py --all
+
+# Hoặc process từng file:
+# python split_ads_backup.py public-chotot/data/ads-13096-tro.json
+
+## 🚀 Step 4: Start server
+
+node server-chotot.js
+
+## 🌐 Step 5: Test UI
+
+# Mở browser:
+# http://localhost:3009/
+
+# Test các filter:
+# - Dropdown: Tất cả / Chỉ Trọ / Chỉ Nhà ở
+# - Checkbox: Chỉ data mới (checked) vs Bao gồm data cũ (unchecked)
+# - Verify category badges hiển thị đúng
+
+## 🧪 Step 6: Test API (optional - mở terminal mới)
+
+# Test 1: Tất cả categories, chỉ data mới
+curl "http://localhost:3009/api/ads?category=all&only_backup=true"
+
+# Test 2: Chỉ Trọ, bao gồm data cũ
+curl "http://localhost:3009/api/ads?category=1050&only_backup=false"
+
+# Test 3: Chỉ Nhà ở, chỉ data mới
+curl "http://localhost:3009/api/ads?category=1020&only_backup=true"
+
+## 📊 Step 7: Verify files
+
+# List all JSON files
+ls public-chotot\data\*.json
+
+# Count files
+(Get-ChildItem public-chotot\data\ads-*-tro.json).Count
+(Get-ChildItem public-chotot\data\ads-*-nha.json).Count
+(Get-ChildItem public-chotot\data\ads-*-nobackup.json).Count
+
+# Should have:
+# - Multiple ads-*-tro.json files
+# - Multiple ads-*-nha.json files
+# - Multiple ads-*-tro-nobackup.json files (old data)
+# - NO ads-*-nha-nobackup.json files (nha is new data)
+
+## 🔄 Step 8: Monitor crawler (optional)
+
+# Nếu ENABLE_CRONJOB=true trong .env
+# Crawler sẽ tự động chạy mỗi phút (giây thứ 59)
+# Watch console logs để xem progress
+
+# Logs sẽ hiển thị:
+# - Crawling category 1050 (Trọ)
+# - Crawling category 1020 (Nhà ở)
+# - Image backup progress
+# - Area index increment
+
+## ✅ Success Indicators
+
+Bạn biết implementation thành công khi:
+
+1. ✅ Có file `ads-*-tro.json` và `ads-*-nha.json` trong data folder
+2. ✅ Có file `ads-*-tro-nobackup.json` (data cũ của Trọ)
+3. ✅ KHÔNG có file `ads-*-nha-nobackup.json` (Nhà ở là data mới)
+4. ✅ UI hiển thị category badges (blue cho Trọ, green cho Nhà ở)
+5. ✅ Dropdown filter hoạt động đúng
+6. ✅ Checkbox "Chỉ data mới" lọc đúng
+
+## 🐛 Troubleshooting
+
+### Lỗi: Python script báo module not found
+pip install -r requirements.txt
+# (hoặc chỉ cần json và pathlib built-in của Python)
+
+### Lỗi: API trả về empty array
+# Check file naming
+ls public-chotot\data\ads-*.json
+# Phải có format: ads-{areaId}-{tro|nha}.json
+
+### Lỗi: UI không hiển thị category badges
+# Check browser console
+# Verify ads có field 'category' và 'category_name'
+
+### Lỗi: Crawler không tạo file mới
+# Check .env file
+ENABLE_CRONJOB=true
+# Restart server
+
+## 📝 Next Steps
+
+1. Chạy commands từ Step 1-4
+2. Verify files được tạo đúng
+3. Test UI trong browser
+4. Monitor crawler logs
+5. Enjoy your multi-category system!
+
+## 📖 Full Documentation
+
+- `TESTING_GUIDE.md` - Chi tiết testing và validation
+- `IMPLEMENTATION_SUMMARY.md` - Tổng quan implementation

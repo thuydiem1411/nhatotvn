@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from "express";
 import path from "path";
 import fs from "fs";
@@ -237,19 +238,63 @@ app.get("/download-ads", (req, res) => {
     }
 });
 
-// GET /api/ads -> Stream data from all area files using createReadStream
+// GET /api/ads -> Stream data with category filter and backup/nobackup merge
 app.get("/api/ads", async (req, res) => {
     try {
         if (!fs.existsSync(dataDir)) {
             return res.status(404).json({ error: "Thư mục data không tồn tại" });
         }
 
-        // Read all ads-*.json files
-        const files = fs.readdirSync(dataDir).filter(file => file.startsWith('ads-') && file.endsWith('.json'));
+        // Parse query params
+        const category = req.query.category || 'all'; // 'all', '1050', '1020'
+        const onlyBackup = req.query.only_backup === 'true'; // true/false
+
+        // Category name mapping
+        const CATEGORY_NAMES = {
+            '1050': 'tro',
+            '1020': 'nha'
+        };
+
+        // Determine which files to read based on category
+        let filePatterns = [];
+        if (category === 'all') {
+            // All categories
+            filePatterns = ['*-tro', '*-nha'];
+        } else if (CATEGORY_NAMES[category]) {
+            // Specific category
+            filePatterns = [`*-${CATEGORY_NAMES[category]}`];
+        } else {
+            return res.status(400).json({ error: "Invalid category parameter" });
+        }
+
+        // Build file list
+        let filesToRead = [];
+        for (const pattern of filePatterns) {
+            const allFiles = fs.readdirSync(dataDir);
+            
+            // Get backup files (e.g., ads-13096-tro.json)
+            const backupFiles = allFiles.filter(file => {
+                const match = file.match(/^ads-\d+-(\w+)\.json$/);
+                return match && pattern.includes(match[1]);
+            });
+            
+            filesToRead.push(...backupFiles.map(f => ({ file: f, isBackup: true })));
+            
+            // If not only_backup, also include nobackup files
+            if (!onlyBackup) {
+                const nobackupFiles = allFiles.filter(file => {
+                    const match = file.match(/^ads-\d+-(\w+)-nobackup\.json$/);
+                    return match && pattern.includes(match[1]);
+                });
+                filesToRead.push(...nobackupFiles.map(f => ({ file: f, isBackup: false })));
+            }
+        }
         
-        if (files.length === 0) {
+        if (filesToRead.length === 0) {
             return res.status(404).json({ error: "Không có file ads nào tồn tại" });
         }
+
+        console.log(`📊 API /api/ads: category=${category}, only_backup=${onlyBackup}, files=${filesToRead.length}`);
 
         // Set headers for streaming JSON array
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -258,17 +303,24 @@ app.get("/api/ads", async (req, res) => {
         // Start JSON array
         res.write('[');
         
-        const seenIds = new Set();
-        const areaStats = {};
+        // Use Map for dedupe: backup files have priority over nobackup files
+        // Read backup files first, then nobackup files
+        const seenIds = new Map(); // ad_id -> ad object
         let totalAds = 0;
         let uniqueAds = 0;
         let isFirstAd = true;
 
+        // Sort files: backup files first (priority), then nobackup files
+        filesToRead.sort((a, b) => {
+            if (a.isBackup && !b.isBackup) return -1;
+            if (!a.isBackup && b.isBackup) return 1;
+            return 0;
+        });
+
         // Process each file sequentially
-        for (const file of files) {
+        for (const { file, isBackup } of filesToRead) {
             try {
                 const filePath = path.join(dataDir, file);
-                const areaId = file.replace('ads-', '').replace('.json', '');
                 
                 // Read file using stream
                 await new Promise((resolve, reject) => {
@@ -284,23 +336,26 @@ app.get("/api/ads", async (req, res) => {
                             const data = JSON.parse(buffer);
                             
                             if (Array.isArray(data)) {
-                                areaStats[areaId] = data.length;
                                 totalAds += data.length;
                                 
-                                // Stream each ad one by one
+                                // Process each ad
                                 for (const ad of data) {
-                                    if (ad.ad_id && !seenIds.has(ad.ad_id)) {
-                                        seenIds.add(ad.ad_id);
-                                        uniqueAds++;
-                                        
-                                        // Add comma separator for all ads except the first one
-                                        if (!isFirstAd) {
-                                            res.write(',');
+                                    if (ad.ad_id) {
+                                        // Dedupe logic: backup file priority
+                                        // If ad_id already exists from backup file, skip this one (from nobackup)
+                                        if (!seenIds.has(ad.ad_id)) {
+                                            seenIds.set(ad.ad_id, ad);
+                                            uniqueAds++;
+                                            
+                                            // Add comma separator for all ads except the first one
+                                            if (!isFirstAd) {
+                                                res.write(',');
+                                            }
+                                            isFirstAd = false;
+                                            
+                                            // Stream the ad as JSON
+                                            res.write(JSON.stringify(ad));
                                         }
-                                        isFirstAd = false;
-                                        
-                                        // Stream the ad as JSON
-                                        res.write(JSON.stringify(ad));
                                     }
                                 }
                             }
@@ -326,8 +381,7 @@ app.get("/api/ads", async (req, res) => {
         res.write(']');
         res.end();
 
-        console.log(`📊 API /api/ads: ${files.length} files, ${totalAds} total ads, ${uniqueAds} unique ads`);
-        console.log(`📊 Area stats:`, areaStats);
+        console.log(`📊 API /api/ads result: ${filesToRead.length} files, ${totalAds} total ads, ${uniqueAds} unique ads`);
         
     } catch (err) {
         if (!res.headersSent) {

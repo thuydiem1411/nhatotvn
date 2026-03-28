@@ -10,6 +10,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const BASE_URL = "https://gateway.chotot.com/v1/public/ad-listing";
+
+// Category configuration
+const CATEGORIES = ["1050", "1020"]; // Trọ, Nhà ở
+const CATEGORY_NAMES = {
+    '1050': 'tro',
+    '1020': 'nha'
+};
+const CATEGORY_DISPLAY_NAMES = {
+    '1050': 'Trọ',
+    '1020': 'Nhà ở'
+};
+
 // Thứ tự area cần crawl luân phiên
 const areaOrder = [
     "13110",
@@ -39,7 +51,7 @@ let areaIndex = 0;
 const PARAMS = {
     region_v2: "13000",
     area_v2: "13110",
-    cg: "1050",
+    cg: "1050", // Will be updated per category
     limit: "50",
     // f: "p",
     include_expired_ads: "true"
@@ -59,8 +71,13 @@ function ensureDataDir() {
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 }
 
-function getAreaFile(areaId) {
-    return path.join(dataDir, `ads-${areaId}.json`);
+// Get backup file path with category
+// IMPORTANT: This function ONLY returns backup file path
+// It NEVER creates or writes to -nobackup files
+// Backup files are always updated by crawler (regardless of imgs_bak status)
+function getAreaFile(areaId, category) {
+    const categoryName = CATEGORY_NAMES[category] || 'unknown';
+    return path.join(dataDir, `ads-${areaId}-${categoryName}.json`);
 }
 
 
@@ -97,26 +114,86 @@ async function getPhoneNumber(listId) {
     }
 }
 
-async function safeWriteFile(data, areaId) {
+async function safeWriteFile(data, areaId, category) {
+    // CRITICAL: This function ONLY writes to BACKUP files
+    // Path format: ads-{areaId}-{tro|nha}.json
+    // NEVER writes to -nobackup files (those are read-only, created once by Python script)
+    const areaFile = getAreaFile(areaId, category); // e.g., ads-13096-tro.json
+    const tempFile = areaFile + '.tmp';
+    const backupFile = areaFile + '.backup';
+    
     try {
-        const areaFile = getAreaFile(areaId);
-        // Tạo file tạm trước
-        const tempFile = areaFile + '.tmp';
-        // Lưu dạng minified để giảm kích thước file
+        // Step 1: Write to temp file
         fs.writeFileSync(tempFile, JSON.stringify(data), "utf-8");
-
-        // Đổi tên file tạm thành file chính (atomic operation)
+        
+        // Step 2: If original file exists, create backup copy
+        if (fs.existsSync(areaFile)) {
+            try {
+                fs.copyFileSync(areaFile, backupFile);
+            } catch (copyErr) {
+                console.error("⚠️  Không thể tạo backup, nhưng tiếp tục:", copyErr?.message);
+            }
+        }
+        
+        // Step 3: Rename temp to main (atomic operation on most systems)
         fs.renameSync(tempFile, areaFile);
+        
+        // Step 4: Delete backup after successful rename
+        if (fs.existsSync(backupFile)) {
+            try {
+                fs.unlinkSync(backupFile);
+            } catch (unlinkErr) {
+                console.warn("⚠️  Không thể xóa backup file (sẽ xóa lần sau):", unlinkErr?.message);
+            }
+        }
+        
         return true;
+        
     } catch (err) {
         console.error("❌ Lỗi ghi file:", err?.message || err);
-        // Xóa file tạm nếu có
-        try {
-            const areaFile = getAreaFile(areaId);
-            if (fs.existsSync(areaFile + '.tmp')) {
-                fs.unlinkSync(areaFile + '.tmp');
+        
+        // Recovery: restore from backup if exists and original file is corrupted/missing
+        if (fs.existsSync(backupFile)) {
+            try {
+                // Check if original file is missing or corrupted
+                let needRestore = false;
+                if (!fs.existsSync(areaFile)) {
+                    needRestore = true;
+                    console.log("🔄 File gốc bị mất, đang restore từ backup...");
+                } else {
+                    // Try to parse original file to check if corrupted
+                    try {
+                        const content = fs.readFileSync(areaFile, "utf-8");
+                        JSON.parse(content);
+                    } catch (parseErr) {
+                        needRestore = true;
+                        console.log("🔄 File gốc bị corrupt, đang restore từ backup...");
+                    }
+                }
+                
+                if (needRestore) {
+                    fs.copyFileSync(backupFile, areaFile);
+                    console.log("✅ Đã restore từ backup thành công");
+                }
+            } catch (restoreErr) {
+                console.error("❌ Lỗi restore từ backup:", restoreErr?.message);
             }
-        } catch { }
+        }
+        
+        // Cleanup temp files
+        try {
+            if (fs.existsSync(tempFile)) {
+                fs.unlinkSync(tempFile);
+            }
+            // Keep backup file if restore was attempted
+            // Otherwise delete it
+            if (fs.existsSync(backupFile) && fs.existsSync(areaFile)) {
+                fs.unlinkSync(backupFile);
+            }
+        } catch (cleanupErr) {
+            console.warn("⚠️  Lỗi cleanup files:", cleanupErr?.message);
+        }
+        
         return false;
     }
 }
@@ -139,11 +216,13 @@ function mergeNonNull(oldObj, newObj) {
 
 let countGetPhoneFailed = 0;
 
-async function mergeByAdId(newAds, areaId) {
-    // Đọc lại file ads-{areaId}.json mới nhất mỗi lần merge
+async function mergeByAdId(newAds, areaId, category) {
+    // CRITICAL: This function ONLY reads/writes BACKUP files
+    // It NEVER touches -nobackup files
+    // Đọc lại file ads-{areaId}-{category}.json mới nhất mỗi lần merge
     let existingAds = [];
     try {
-        const areaFile = getAreaFile(areaId);
+        const areaFile = getAreaFile(areaId, category); // Backup file only
         if (fs.existsSync(areaFile)) {
             const fileContent = fs.readFileSync(areaFile, "utf-8");
             existingAds = JSON.parse(fileContent);
@@ -152,7 +231,7 @@ async function mergeByAdId(newAds, areaId) {
             }
         }
     } catch (err) {
-        console.error(`❌ Lỗi đọc file ads-${areaId}.json:`, err?.message || err);
+        console.error(`❌ Lỗi đọc file ads-${areaId}-${CATEGORY_NAMES[category]}.json:`, err?.message || err);
         existingAds = [];
     }
 
@@ -162,15 +241,19 @@ async function mergeByAdId(newAds, areaId) {
         const existing = map.get(ad.ad_id) || {};
         const merged = mergeNonNull(existing, ad);
 
+        // Add category info to ad
+        merged.category = category;
+        merged.category_name = CATEGORY_DISPLAY_NAMES[category];
+
         // // Kiểm tra và lấy phone nếu cần
         // !merged.company_ad
         if (!merged.phone && !merged.company_ad && !merged.phone_hidden && merged.list_id && countGetPhoneFailed < 3) {
             const phone = await getPhoneNumber(merged.list_id);
             if (phone) {
                 merged.phone = phone;
-                console.log(`✅ Đã lấy phone: ${phone} cho ad_id ${merged.ad_id}, area ${areaId}`);
+                console.log(`✅ Đã lấy phone: ${phone} cho ad_id ${merged.ad_id}, area ${areaId}, category ${category}`);
             } else {
-                console.log(`❌ Không lấy được phone cho ad_id ${merged.ad_id}, area ${areaId}`);
+                console.log(`❌ Không lấy được phone cho ad_id ${merged.ad_id}, area ${areaId}, category ${category}`);
             }
             // Delay nhẹ giữa các request phone để tránh bị block
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -196,11 +279,12 @@ async function mergeByAdId(newAds, areaId) {
     return Array.from(map.values());
 }
 
-async function fetchPage(page) {
+async function fetchPage(page, category) {
     const limit = parseInt(PARAMS.limit);
     const offset = (page - 1) * limit;
     const url = `${BASE_URL}?${new URLSearchParams({
         ...PARAMS,
+        cg: category, // Use category param
         page: page.toString(),
         o: offset.toString()
     })}`;
@@ -213,8 +297,6 @@ async function fetchAllPages() {
         return;
     }
 
-
-
     isRunning = true;
 
     try {
@@ -223,125 +305,140 @@ async function fetchAllPages() {
         PARAMS.area_v2 = currentArea;
         ensureDataDir();
 
-        // Lấy page 1 để biết total
-        const firstPage = await fetchPage(1);
-        const total = firstPage.total || 0;
-        const limit = parseInt(PARAMS.limit);
-        const totalPages = Math.ceil(total / limit);
+        console.log(`\n🔄 Bắt đầu crawl area ${currentArea} (index ${areaIndex})`);
 
-
-        let allAds = [...(firstPage.ads || [])];
-
-        // Save page 1 ngay - mergeByAdId sẽ tự đọc file mới nhất
-        const merged1 = await mergeByAdId(allAds, currentArea);
-        if (safeWriteFile(merged1, currentArea)) {
-            // console.log(`💾 Page 1: ${firstPage.ads?.length || 0} ads, saved => ${merged1.length} total`);
-        }
-
-        // Crawl từ page 2 đến hết, save sau mỗi page
-        for (let page = 2; page <= totalPages; page++) {
+        // Loop through all categories
+        for (const currentCategory of CATEGORIES) {
             try {
-                const pageData = await fetchPage(page);
-                if (pageData.ads && pageData.ads.length > 0) {
-                    allAds = [...allAds, ...pageData.ads];
+                console.log(`\n📦 Crawling category ${currentCategory} (${CATEGORY_DISPLAY_NAMES[currentCategory]})...`);
 
-                    // Save sau mỗi page - mergeByAdId sẽ tự đọc file mới nhất
-                    const merged = await mergeByAdId(allAds, currentArea);
-                    if (safeWriteFile(merged, currentArea)) {
-                        // console.log(`💾 Page ${page}: ${pageData.ads.length} ads, saved => ${merged.length} total`);
-                    }
+                // Lấy page 1 để biết total
+                const firstPage = await fetchPage(1, currentCategory);
+                const total = firstPage.total || 0;
+                const limit = parseInt(PARAMS.limit);
+                const totalPages = Math.ceil(total / limit);
+
+                console.log(`📊 Total: ${total} ads, ${totalPages} pages`);
+
+                let allAds = [...(firstPage.ads || [])];
+
+                // Save page 1 ngay - mergeByAdId sẽ tự đọc file mới nhất
+                const merged1 = await mergeByAdId(allAds, currentArea, currentCategory);
+                if (safeWriteFile(merged1, currentArea, currentCategory)) {
+                    console.log(`💾 Page 1: ${firstPage.ads?.length || 0} ads, saved => ${merged1.length} total`);
                 }
-                // Delay nhẹ giữa các request
-                await new Promise(resolve => setTimeout(resolve, 500));
-            } catch (err) {
-                console.error(`❌ Lỗi page ${page}:`, err?.message || err);
-            }
-        }
 
-        console.log(`✅ Chotot: Hoàn thành crawl ${totalPages} pages, tổng ${allAds.length} ads, area ${currentArea}, areaIndex ${areaIndex}`);
-        
-        // ====== IMAGE BACKUP LOGIC ======
-        // After crawl done, backup images for personal ads
-        console.log(`\n📸 Starting image backup for area ${currentArea}...`);
-        
-        try {
-            const areaFile = getAreaFile(currentArea);
-            const adsData = JSON.parse(fs.readFileSync(areaFile, 'utf-8'));
-            let backedUpCount = 0;
-            
-            // Filter personal ads without backup
-            const adsNeedBackup = adsData.filter(ad => {
-                // Must be personal ad
-                if (ad.company_ad === true) return false;
-                
-                // Must have media
-                if (!ad.images?.length && !ad.videos?.length) return false;
-                
-                // Need backup if no imgs_bak
-                if (!ad.imgs_bak || ad.imgs_bak.length === 0) return true;
-                
-                // Already has backup data - skip it
-                return false;
-            });
-            
-            if (adsNeedBackup.length > 0) {
-                console.log(`📋 Found ${adsNeedBackup.length} ads need backup - Starting full backup...`);
-                
-                let consecutiveRateLimitFails = 0;
-                const RATE_LIMIT_THRESHOLD = 3; // Skip area after 3 consecutive rate limit fails
-                
-                // Backup ALL ads in this area (no limit)
-                for (let i = 0; i < adsNeedBackup.length; i++) {
-                    const ad = adsNeedBackup[i];
-                    console.log(`\n[${i + 1}/${adsNeedBackup.length}] Processing ad ${ad.ad_id}...`);
-                    
-                    // Check if hit rate limit threshold
-                    if (consecutiveRateLimitFails >= RATE_LIMIT_THRESHOLD) {
-                        console.warn(`\n⚠️  Rate limit detected (${consecutiveRateLimitFails} consecutive fails)`);
-                        console.warn(`⏭️  Skipping remaining ads in ${currentArea}, will retry in next cycle`);
-                        break;
-                    }
-                    
+                // Crawl từ page 2 đến hết, save sau mỗi page
+                for (let page = 2; page <= totalPages; page++) {
                     try {
-                        const result = await backupAdImages(ad);
-                        
-                        if (result.success) {
-                            ad.imgs_bak = result.results;
-                            backedUpCount++;
-                            consecutiveRateLimitFails = 0; // Reset counter on success
-                            
-                            // Save after each ad to prevent data loss
-                            fs.writeFileSync(areaFile, JSON.stringify(adsData), 'utf-8');
-                        } else {
-                            // Check if any media hit rate limit
-                            const hasRateLimit = result.results?.some(r => r.s === 'rate_limit');
-                            if (hasRateLimit) {
-                                consecutiveRateLimitFails++;
-                                console.warn(`  ⚠️  Rate limit counter: ${consecutiveRateLimitFails}/${RATE_LIMIT_THRESHOLD}`);
-                            } else {
-                                consecutiveRateLimitFails = 0; // Reset if not rate limit
-                            }
-                            
-                            // Save results even if not all succeeded
-                            if (result.results && result.results.length > 0) {
-                                ad.imgs_bak = result.results;
-                                fs.writeFileSync(areaFile, JSON.stringify(adsData), 'utf-8');
+                        const pageData = await fetchPage(page, currentCategory);
+                        if (pageData.ads && pageData.ads.length > 0) {
+                            allAds = [...allAds, ...pageData.ads];
+
+                            // Save sau mỗi page - mergeByAdId sẽ tự đọc file mới nhất
+                            const merged = await mergeByAdId(allAds, currentArea, currentCategory);
+                            if (safeWriteFile(merged, currentArea, currentCategory)) {
+                                console.log(`💾 Page ${page}: ${pageData.ads.length} ads, saved => ${merged.length} total`);
                             }
                         }
+                        // Delay nhẹ giữa các request
+                        await new Promise(resolve => setTimeout(resolve, 500));
                     } catch (err) {
-                        console.error(`  ❌ Backup failed for ad ${ad.ad_id}:`, err.message);
-                        consecutiveRateLimitFails = 0; // Reset on other errors
+                        console.error(`❌ Lỗi page ${page}:`, err?.message || err);
                     }
                 }
+
+                console.log(`✅ Category ${currentCategory}: Hoàn thành crawl ${totalPages} pages, tổng ${allAds.length} ads`);
                 
-                console.log(`\n✅ Backup completed: ${backedUpCount}/${adsNeedBackup.length} ads in ${currentArea}`);
-            } else {
-                console.log(`✓ All ads already backed up in area ${currentArea}`);
+                // ====== IMAGE BACKUP LOGIC ======
+                // After crawl done, backup images for personal ads
+                console.log(`\n📸 Starting image backup for area ${currentArea}, category ${currentCategory}...`);
+                
+                try {
+                    const areaFile = getAreaFile(currentArea, currentCategory);
+                    const adsData = JSON.parse(fs.readFileSync(areaFile, 'utf-8'));
+                    let backedUpCount = 0;
+                    
+                    // Filter personal ads without backup
+                    const adsNeedBackup = adsData.filter(ad => {
+                        // Must be personal ad
+                        if (ad.company_ad === true) return false;
+                        
+                        // Must have media
+                        if (!ad.images?.length && !ad.videos?.length) return false;
+                        
+                        // Need backup if no imgs_bak
+                        if (!ad.imgs_bak || ad.imgs_bak.length === 0) return true;
+                        
+                        // Already has backup data - skip it
+                        return false;
+                    });
+                    
+                    if (adsNeedBackup.length > 0) {
+                        console.log(`📋 Found ${adsNeedBackup.length} ads need backup - Starting full backup...`);
+                        
+                        let consecutiveRateLimitFails = 0;
+                        const RATE_LIMIT_THRESHOLD = 3; // Skip area after 3 consecutive rate limit fails
+                        
+                        // Backup ALL ads in this area (no limit)
+                        for (let i = 0; i < adsNeedBackup.length; i++) {
+                            const ad = adsNeedBackup[i];
+                            console.log(`\n[${i + 1}/${adsNeedBackup.length}] Processing ad ${ad.ad_id}...`);
+                            
+                            // Check if hit rate limit threshold
+                            if (consecutiveRateLimitFails >= RATE_LIMIT_THRESHOLD) {
+                                console.warn(`\n⚠️  Rate limit detected (${consecutiveRateLimitFails} consecutive fails)`);
+                                console.warn(`⏭️  Skipping remaining ads in ${currentArea}, will retry in next cycle`);
+                                break;
+                            }
+                            
+                            try {
+                                const result = await backupAdImages(ad);
+                                
+                                if (result.success) {
+                                    ad.imgs_bak = result.results;
+                                    backedUpCount++;
+                                    consecutiveRateLimitFails = 0; // Reset counter on success
+                                    
+                                    // Save after each ad to prevent data loss
+                                    fs.writeFileSync(areaFile, JSON.stringify(adsData), 'utf-8');
+                                } else {
+                                    // Check if any media hit rate limit
+                                    const hasRateLimit = result.results?.some(r => r.s === 'rate_limit');
+                                    if (hasRateLimit) {
+                                        consecutiveRateLimitFails++;
+                                        console.warn(`  ⚠️  Rate limit counter: ${consecutiveRateLimitFails}/${RATE_LIMIT_THRESHOLD}`);
+                                    } else {
+                                        consecutiveRateLimitFails = 0; // Reset if not rate limit
+                                    }
+                                    
+                                    // Save results even if not all succeeded
+                                    if (result.results && result.results.length > 0) {
+                                        ad.imgs_bak = result.results;
+                                        fs.writeFileSync(areaFile, JSON.stringify(adsData), 'utf-8');
+                                    }
+                                }
+                            } catch (err) {
+                                console.error(`  ❌ Backup failed for ad ${ad.ad_id}:`, err.message);
+                                consecutiveRateLimitFails = 0; // Reset on other errors
+                            }
+                        }
+                        
+                        console.log(`\n✅ Backup completed: ${backedUpCount}/${adsNeedBackup.length} ads in ${currentArea}, category ${currentCategory}`);
+                    } else {
+                        console.log(`✓ All ads already backed up in area ${currentArea}, category ${currentCategory}`);
+                    }
+                } catch (backupErr) {
+                    console.error(`❌ Backup error for area ${currentArea}, category ${currentCategory}:`, backupErr.message);
+                }
+                // ====== END IMAGE BACKUP ======
+
+            } catch (categoryErr) {
+                console.error(`❌ Lỗi crawl category ${currentCategory}:`, categoryErr?.message || categoryErr);
             }
-        } catch (backupErr) {
-            console.error(`❌ Backup error for area ${currentArea}:`, backupErr.message);
         }
-        // ====== END IMAGE BACKUP ======
+
+        console.log(`\n🎉 Hoàn thành toàn bộ area ${currentArea}, areaIndex ${areaIndex}`);
         
         // Tăng index để lần cron tiếp theo chuyển sang khu vực kế tiếp
         areaIndex = (areaIndex + 1) % areaOrder.length;

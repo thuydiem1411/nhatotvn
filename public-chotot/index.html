@@ -100,6 +100,26 @@
         .backup-badge i {
             font-size: 0.9rem;
         }
+        .category-badge {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: 600;
+        }
+        .category-badge.category-tro {
+            background-color: #17a2b8;
+            color: white;
+        }
+        .category-badge.category-nha {
+            background-color: #28a745;
+            color: white;
+        }
+        .category-badge i {
+            font-size: 0.85rem;
+        }
         .modal-xl {
             max-width: 95%;
         }
@@ -233,7 +253,14 @@
                     <option value="price-desc">💰 Giá giảm dần</option>
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
+                <select id="filter-category" class="form-select form-select-sm">
+                    <option value="all" selected>🏠 Tất cả (Trọ + Nhà ở)</option>
+                    <option value="1050">🛏️ Chỉ Trọ</option>
+                    <option value="1020">🏡 Chỉ Nhà ở</option>
+                </select>
+            </div>
+            <div class="col-md-2">
                 <select id="filter-area" class="form-select form-select-sm">
                     <option value="">Chọn Quận/Huyện</option>
                 </select>
@@ -262,7 +289,7 @@
             <div class="col-md-2">
                 <div class="form-check form-check-sm mb-0">
                     <input type="checkbox" class="form-check-input" id="filter-only-backup-img" checked>
-                    <label class="form-check-label small" for="filter-only-backup-img">Chỉ tin đã backup ảnh</label>
+                    <label class="form-check-label small" for="filter-only-backup-img">Chỉ data mới</label>
                 </div>
             </div>
             <div class="col-md-1 d-flex align-items-center">

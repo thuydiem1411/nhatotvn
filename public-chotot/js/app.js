@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const filterAreaEl = document.getElementById("filter-area");
     const filterWardEl = document.getElementById("filter-ward");
     const filterCompanyEl = document.getElementById("filter-company");
+    const filterCategoryEl = document.getElementById("filter-category");
     const filterOnlyBackupImgEl = document.getElementById("filter-only-backup-img");
     const searchEl = document.getElementById("search-input");
     const detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
@@ -34,7 +35,9 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     async function loadAds() {
         try {
-            const res = await fetch("/api/ads");
+            const category = filterCategoryEl?.value || 'all';
+            const onlyBackup = filterOnlyBackupImgEl?.checked ? 'true' : 'false';
+            const res = await fetch(`/api/ads?category=${category}&only_backup=${onlyBackup}`);
             allAds = await res.json();
 
             // Cập nhật tổng số
@@ -615,8 +618,12 @@ document.addEventListener("DOMContentLoaded", async function () {
                         ${ad.imgs_bak?.some(img => img.s === 'ok') ? '<span class="backup-badge"><i class="mdi mdi-cloud-check"></i></span>' : ''}
                     </div>
                     <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-start mb-1">
-                            <span class="price-badge">${ad.price_string || formatMoneyVND(ad.price)}</span>
+                        <div class="d-flex justify-content-between align-items-start mb-1 flex-wrap gap-1">
+                            <div class="d-flex gap-1 align-items-center">
+                                <span class="price-badge">${ad.price_string || formatMoneyVND(ad.price)}</span>
+                                ${ad.category === '1050' ? '<span class="category-badge category-tro"><i class="mdi mdi-bunk-bed"></i> Trọ</span>' : 
+                                  ad.category === '1020' ? '<span class="category-badge category-nha"><i class="mdi mdi-home"></i> Nhà ở</span>' : ''}
+                            </div>
                             <small class="text-muted d-flex align-items-center gap-1">
                                 ${ad.company_ad === true ? '<span class="badge-agent">Môi giới</span>' : ''}
                                 <i class="mdi mdi-clock"></i> ${formatDate(ad.list_time)}
@@ -787,10 +794,19 @@ document.addEventListener("DOMContentLoaded", async function () {
         render();
     });
 
-    if (filterOnlyBackupImgEl) {
-        filterOnlyBackupImgEl.addEventListener("change", () => {
+    // Category filter - reload ads when changed
+    if (filterCategoryEl) {
+        filterCategoryEl.addEventListener('change', async () => {
             displayedCount = 20;
-            render();
+            await loadAds(); // Reload ads from API with new category filter
+        });
+    }
+
+    // Only backup filter - reload ads when changed
+    if (filterOnlyBackupImgEl) {
+        filterOnlyBackupImgEl.addEventListener("change", async () => {
+            displayedCount = 20;
+            await loadAds(); // Reload ads from API with new only_backup filter
         });
     }
 
