@@ -72,12 +72,12 @@ Reasons: { noImgsBak: X, allFailed: X, lengthMismatch: X, onlyRateLimit: X }
 
 ---
 
-### 2. Test Recovery Clear imgs_bak
+### 2. Test Recovery Clear imgs_bak (Only Failed)
 
-**Setup:** Tạo 1 test ad trong nobackup với failed imgs_bak
+**Test 2a: Recovery ad với toàn fail**
 
 ```powershell
-# 1. Tạo test nobackup file
+# 1. Tạo test nobackup file (all failed)
 node -e "
 const fs = require('fs');
 const testAd = {
@@ -90,49 +90,87 @@ const testAd = {
   ]
 };
 fs.writeFileSync('public-chotot/data/ads-13116-tro-nobackup.json', JSON.stringify([testAd]));
-console.log('Created test nobackup file');
+console.log('Created test nobackup file (all failed)');
 "
-```
-
-**Action:** Crawl để trigger recovery
-
-```powershell
-# 2. Start crawler (sẽ crawl ad 999999999 từ API)
-node fetchChotot.js
 ```
 
 **Verify logs:**
 ```
 🔄 Recovery detected: ad 999999999 (was in nobackup, now re-crawled)
-   Clearing 3 failed imgs_bak entries to retry
+   Removing 3 failed imgs_bak, keeping 0 successful
 ```
 
 **Verify data:**
 ```powershell
-# 3. Check backup file có ad với imgs_bak = []
+# Check backup file có ad với imgs_bak = []
 node -e "
 const fs = require('fs');
 const ads = JSON.parse(fs.readFileSync('public-chotot/data/ads-13116-tro.json', 'utf-8'));
 const testAd = ads.find(a => a.ad_id === 999999999);
 if (testAd) {
-  console.log('Ad found in backup file');
   console.log('imgs_bak length:', testAd.imgs_bak?.length || 0);
   if (!testAd.imgs_bak || testAd.imgs_bak.length === 0) {
-    console.log('✅ PASS: imgs_bak cleared');
+    console.log('✅ PASS: imgs_bak cleared (all failed)');
   } else {
     console.log('❌ FAIL: imgs_bak not cleared');
   }
-} else {
-  console.log('❌ FAIL: Ad not found in backup');
+}
+"
+```
+
+---
+
+**Test 2b: Recovery ad với mix success/fail**
+
+```powershell
+# 1. Tạo test nobackup file (mix status)
+node -e "
+const fs = require('fs');
+const testAd = {
+  ad_id: 999999998,
+  images: ['url1', 'url2', 'url3'],
+  imgs_bak: [
+    {src: 'file1.jpg', bak: 'v123/cloud1.webp', c: 'cloud1', s: 'ok'},
+    {src: 'file2.jpg', bak: null, c: null, s: 'fail'},
+    {src: 'file3.jpg', bak: null, c: null, s: 'error'}
+  ]
+};
+fs.writeFileSync('public-chotot/data/ads-13116-tro-nobackup.json', JSON.stringify([testAd]));
+console.log('Created test nobackup file (mix status)');
+"
+```
+
+**Verify logs:**
+```
+🔄 Recovery detected: ad 999999998 (was in nobackup, now re-crawled)
+   Removing 2 failed imgs_bak, keeping 1 successful
+```
+
+**Verify data:**
+```powershell
+# Check backup file giữ lại 1 success
+node -e "
+const fs = require('fs');
+const ads = JSON.parse(fs.readFileSync('public-chotot/data/ads-13116-tro.json', 'utf-8'));
+const testAd = ads.find(a => a.ad_id === 999999998);
+if (testAd) {
+  const okCount = testAd.imgs_bak?.filter(i => i.s === 'ok').length || 0;
+  console.log('imgs_bak length:', testAd.imgs_bak?.length || 0);
+  console.log('OK count:', okCount);
+  if (testAd.imgs_bak?.length === 1 && okCount === 1) {
+    console.log('✅ PASS: Kept 1 successful, removed 2 failed');
+  } else {
+    console.log('❌ FAIL: Wrong imgs_bak after recovery');
+  }
 }
 "
 ```
 
 **Expected:**
 ```
-Ad found in backup file
-imgs_bak length: 0
-✅ PASS: imgs_bak cleared
+imgs_bak length: 1
+OK count: 1
+✅ PASS: Kept 1 successful, removed 2 failed
 ```
 
 ---

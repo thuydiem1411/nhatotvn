@@ -6,7 +6,7 @@
 
 **Vấn đề:** Khi ad được recovery từ nobackup, imgs_bak cũ (toàn fail) không bị xóa → compare length sai → không backup
 
-**Solution trong mergeByAdId (line ~324-333):**
+**Solution trong mergeByAdId (line ~338-357):**
 
 ```javascript
 // Check if this ad is being recovered from nobackup
@@ -14,16 +14,27 @@ if (nobackupSet.has(ad.ad_id)) {
     console.log(`🔄 Recovery detected: ad ${ad.ad_id} (was in nobackup, now re-crawled)`);
     recoveredIds.add(ad.ad_id);
     
-    // Clear failed imgs_bak to force retry
+    // Clear only failed imgs_bak, keep successful ones
     const existing = map.get(ad.ad_id);
-    if (existing?.imgs_bak) {
-        console.log(`   Clearing ${existing.imgs_bak.length} failed imgs_bak entries to retry`);
-        existing.imgs_bak = [];
+    if (existing?.imgs_bak && existing.imgs_bak.length > 0) {
+        const before = existing.imgs_bak.length;
+        const successBackups = existing.imgs_bak.filter(img => img.s === 'ok');
+        const removed = before - successBackups.length;
+        
+        if (removed > 0) {
+            console.log(`   Removing ${removed} failed imgs_bak, keeping ${successBackups.length} successful`);
+            existing.imgs_bak = successBackups;
+        } else {
+            console.log(`   All ${before} imgs_bak are successful, keeping all`);
+        }
     }
 }
 ```
 
-**Result:** Recovered ads bắt đầu lại từ đầu với imgs_bak = []
+**Result:** 
+- Giữ lại imgs_bak có `s === 'ok'` (đã backup thành công)
+- Chỉ xóa imgs_bak có status khác (fail, error, rate_limit)
+- Cho phép backup lại những cái failed mà không mất những cái đã success
 
 ---
 
@@ -92,7 +103,7 @@ function needsBackup(ad) {
 
 ## Test Cases
 
-### Case 1: Recovery ad với imgs_bak failed
+### Case 1: Recovery ad với imgs_bak toàn fail
 ```json
 // Before recovery
 // nobackup file:
@@ -108,12 +119,37 @@ function needsBackup(ad) {
 
 // During recovery (mergeByAdId)
 → Recovery detected: ad 174238279
-→ Clearing 3 failed imgs_bak entries to retry
+→ Removing 3 failed imgs_bak, keeping 0 successful
 → imgs_bak = []
 
 // After recovery (needsBackup)
 → imgs_bak.length === 0 → return true
 → Backup process starts fresh
+```
+
+### Case 1b: Recovery ad với mix success/fail
+```json
+// Before recovery
+// nobackup file:
+{
+  "ad_id": 174238280,
+  "images": ["url1", "url2", "url3"],
+  "imgs_bak": [
+    {"src": "file1.jpg", "bak": "cloud1.webp", "c": "cloud1", "s": "ok"},
+    {"src": "file2.jpg", "bak": null, "c": null, "s": "fail"},
+    {"src": "file3.jpg", "bak": null, "c": null, "s": "error"}
+  ]
+}
+
+// During recovery (mergeByAdId)
+→ Recovery detected: ad 174238280
+→ Removing 2 failed imgs_bak, keeping 1 successful
+→ imgs_bak = [{"src": "file1.jpg", "bak": "cloud1.webp", "c": "cloud1", "s": "ok"}]
+
+// After recovery (needsBackup)
+→ validBackups.length = 1, mediaCount = 3
+→ 1 < 3 → return true
+→ Backup only 2 remaining images (không backup lại file1.jpg)
 ```
 
 ### Case 2: Ad với mix success/fail

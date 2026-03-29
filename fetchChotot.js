@@ -340,11 +340,19 @@ async function mergeByAdId(newAds, areaId, category) {
             console.log(`🔄 Recovery detected: ad ${ad.ad_id} (was in nobackup, now re-crawled)`);
             recoveredIds.add(ad.ad_id);
             
-            // Clear failed imgs_bak to force retry
+            // Clear only failed imgs_bak, keep successful ones
             const existing = map.get(ad.ad_id);
-            if (existing?.imgs_bak) {
-                console.log(`   Clearing ${existing.imgs_bak.length} failed imgs_bak entries to retry`);
-                existing.imgs_bak = [];
+            if (existing?.imgs_bak && existing.imgs_bak.length > 0) {
+                const before = existing.imgs_bak.length;
+                const successBackups = existing.imgs_bak.filter(img => img.s === 'ok');
+                const removed = before - successBackups.length;
+                
+                if (removed > 0) {
+                    console.log(`   Removing ${removed} failed imgs_bak, keeping ${successBackups.length} successful`);
+                    existing.imgs_bak = successBackups;
+                } else {
+                    console.log(`   All ${before} imgs_bak are successful, keeping all`);
+                }
             }
         }
 
