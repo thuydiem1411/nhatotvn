@@ -60,6 +60,16 @@ const PARAMS = {
 const dataDir = path.join(__dirname, "public-chotot/data");
 // Không cần dataFile nữa, sẽ lưu theo từng area
 
+// Clean ad data by removing redundant image fields (save storage)
+function cleanAdData(ad) {
+    delete ad.image;
+    delete ad.webp_image;
+    delete ad.thumbnail_image;
+    delete ad.image_thumbnails;
+    delete ad.special_display_images;
+    return ad;
+}
+
 // RSA Public Key để mã hóa list_id
 const RSAPublicKey = {
     production: `-----BEGIN PUBLIC KEY-----\nMIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAxnvPjlA/K/adq6mA6+uU\ntlyBBxFaKeK+WD2FypOeCAP0qtucmaDrIbxirykrxQjRpGxl2HKRBwGd2h/hDuk9\nCxRUXD2p0Hrzb1Hb9M5px19TPXM6AWSClR1kozehRusIFrxP6PHqDLx5prJFLlSZ\nzg3N3oGhS6oP/a4Ku/iAdCUCiHb5TX3b3+y4Ll/QViZhpKZjU6BhIOsiVIJhyXvn\n0cSqLXPjNuXR5A4JkmRl9T9cWncEHTKmoVUyXQJaDZa3yH/OJSEmhhGyKNKkM5so\nlasJWSBKenFnFvphw3+KG8BGfJwGkvtRAVbS1ljduH8z8fxALxHgUdnTtgpxB+KZ\n/CVnNr97EGqYPLVlX+duGkuy1yCunqVTiY2HyL/0bMTBK84oCQjtMVAHgZ345hZn\nmGST71D8+i5HGtOOFoRyP6qK6ex1qfEROzWsmVDA00aHLlQcKOLaHvT/DB30aeUs\nZoL/kQo100XccufpHESrits0mEuoyza4CCFM04F3pDOXAgMBAAE=\n-----END PUBLIC KEY-----`
@@ -78,6 +88,44 @@ function ensureDataDir() {
 function getAreaFile(areaId, category) {
     const categoryName = CATEGORY_NAMES[category] || 'unknown';
     return path.join(dataDir, `ads-${areaId}-${categoryName}.json`);
+}
+
+// Load nobackup file for recovery check (READ ONLY - never write to this file from crawler)
+function loadNobackupFile(areaId, category) {
+    const categoryName = CATEGORY_NAMES[category] || 'unknown';
+    const nobackupFile = path.join(dataDir, `ads-${areaId}-${categoryName}-nobackup.json`);
+    
+    if (!fs.existsSync(nobackupFile)) return [];
+    
+    try {
+        const content = fs.readFileSync(nobackupFile, 'utf-8');
+        return JSON.parse(content);
+    } catch (err) {
+        console.error(`Error reading nobackup file:`, err.message);
+        return [];
+    }
+}
+
+// Save nobackup file after recovery (remove recovered ads)
+function saveNobackupFile(data, areaId, category) {
+    const categoryName = CATEGORY_NAMES[category] || 'unknown';
+    const nobackupFile = path.join(dataDir, `ads-${areaId}-${categoryName}-nobackup.json`);
+    const tempFile = nobackupFile + '.tmp';
+    
+    try {
+        // Write to temp file first
+        fs.writeFileSync(tempFile, JSON.stringify(data), 'utf-8');
+        // Atomic rename
+        fs.renameSync(tempFile, nobackupFile);
+        return true;
+    } catch (err) {
+        console.error(`Error saving nobackup file:`, err.message);
+        // Cleanup temp file
+        try {
+            if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+        } catch {}
+        return false;
+    }
 }
 
 
@@ -217,8 +265,8 @@ function mergeNonNull(oldObj, newObj) {
 let countGetPhoneFailed = 0;
 
 async function mergeByAdId(newAds, areaId, category) {
-    // CRITICAL: This function ONLY reads/writes BACKUP files
-    // It NEVER touches -nobackup files
+    // CRITICAL: This function saves ALL crawled ads to BACKUP files
+    // It checks nobackup to track recovery, but NEVER writes to nobackup
     // Đọc lại file ads-{areaId}-{category}.json mới nhất mỗi lần merge
     let existingAds = [];
     try {
@@ -235,9 +283,23 @@ async function mergeByAdId(newAds, areaId, category) {
         existingAds = [];
     }
 
+    // Load nobackup file to check for recovery
+    const nobackupAds = loadNobackupFile(areaId, category);
+    const nobackupSet = new Set(nobackupAds.map(ad => ad.ad_id));
+    const recoveredIds = new Set(); // Track recovered ad_ids
+
     const map = new Map(existingAds.map(ad => [ad.ad_id, ad]));
 
     for (const ad of newAds) {
+        // Clean data before processing (remove redundant fields to save storage)
+        cleanAdData(ad);
+
+        // Check if this ad is being recovered from nobackup
+        if (nobackupSet.has(ad.ad_id)) {
+            console.log(`🔄 Recovery detected: ad ${ad.ad_id} (was in nobackup, now re-crawled)`);
+            recoveredIds.add(ad.ad_id);
+        }
+
         const existing = map.get(ad.ad_id) || {};
         const merged = mergeNonNull(existing, ad);
 
@@ -274,6 +336,14 @@ async function mergeByAdId(newAds, areaId, category) {
         }
 
         map.set(ad.ad_id, merged);
+    }
+
+    // Remove recovered ads from nobackup file
+    if (recoveredIds.size > 0) {
+        const updatedNobackup = nobackupAds.filter(ad => !recoveredIds.has(ad.ad_id));
+        if (saveNobackupFile(updatedNobackup, areaId, category)) {
+            console.log(`✅ Removed ${recoveredIds.size} recovered ads from nobackup`);
+        }
     }
 
     return Array.from(map.values());

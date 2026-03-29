@@ -33,6 +33,17 @@ document.addEventListener("DOMContentLoaded", async function () {
     let focusCircle = null;
     let cardMapsCache = new Map(); // Cache map instances for cards
 
+    // Reconstruct full Cloudinary URL from cloudName + relative path
+    function reconstructCloudinaryUrl(bak, cloudName) {
+        if (!bak || !cloudName) return null;
+        
+        // If already full URL, return as-is
+        if (bak.startsWith('http')) return bak;
+        
+        // Reconstruct: https://res.cloudinary.com/{cloudName}/image/upload/{path}
+        return `https://res.cloudinary.com/${cloudName}/image/upload/${bak}`;
+    }
+
     async function loadAds() {
         try {
             const category = filterCategoryEl?.value || 'all';
@@ -602,12 +613,17 @@ document.addEventListener("DOMContentLoaded", async function () {
         // Chỉ hiển thị số lượng đã định
         const displayAds = sorted.slice(0, displayedCount);
 
-        listEl.innerHTML = displayAds.map(ad => `
+        listEl.innerHTML = displayAds.map(ad => {
+            // Reconstruct backup URL if available
+            const backupImg = ad.imgs_bak?.find(img => img.s === 'ok');
+            const backupUrl = backupImg ? reconstructCloudinaryUrl(backupImg.bak, backupImg.c) : '';
+            
+            return `
             <div class="col-md-4 col-lg-3 col-xl-3 mb-2">
                 <div class="card h-100 ${ad.company_ad === true ? 'agent' : ''}"">
                     <div class="image-container" data-ad-id="${ad.ad_id}" onclick="openDetailModal('${ad.ad_id}')">
-                        <img src="${ad.image || ad.webp_image || 'https://placehold.co/300x180?text=No+Image'}" 
-                             data-backup="${ad.imgs_bak?.find(img => img.s === 'ok')?.bak || ''}"
+                        <img src="${ad.images?.[0] || backupUrl || 'https://placehold.co/300x180?text=No+Image'}" 
+                             data-backup="${backupUrl}"
                              alt="thumb" class="card-img-top ad-thumbnail" 
                              style="height: 180px; object-fit: cover;" 
                              loading="lazy"
@@ -668,7 +684,8 @@ document.addEventListener("DOMContentLoaded", async function () {
                     </div>
                 </div>
             </div>
-        `).join('') +
+        `;
+        }).join('') +
 
             // Thêm loading indicator nếu còn ads chưa hiển thị
             (displayedCount < sorted.length ? `
@@ -830,9 +847,13 @@ document.addEventListener("DOMContentLoaded", async function () {
                 </div>
             `;
         } else {
+            // Reconstruct backup URL if available
+            const backupImg = currentAd.imgs_bak?.find(img => img.s === 'ok');
+            const backupUrl = backupImg ? reconstructCloudinaryUrl(backupImg.bak, backupImg.c) : null;
+            
             carouselHtml = `
                 <div class="text-center mb-2">
-                    <img src="${currentAd.image || currentAd.webp_image || 'https://placehold.co/600x400?text=No+Image'}" 
+                    <img src="${currentAd.images?.[0] || backupUrl || 'https://placehold.co/600x400?text=No+Image'}" 
                         class="img-fluid rounded" style="max-height: 300px;" alt="Main Image">
                 </div>
             `;

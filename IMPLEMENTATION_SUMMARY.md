@@ -9,10 +9,11 @@
 - ✅ Mỗi cron cycle crawl 1 area cho CẢ 2 categories
 
 ### 2. Python Script (split_ads_backup.py)
-- ✅ Tách data cũ (chưa backup) ra file riêng
-- ✅ **CHỈ tạo nobackup cho Trọ (1050)** - data cũ
+- ✅ Tách data hoàn toàn: backup (CÓ imgs_bak) vs nobackup (KHÔNG CÓ imgs_bak)
+- ✅ **CHỈ tạo nobackup cho Trọ (1050)** - data cũ chưa backup
 - ✅ **Nhà ở (1020) KHÔNG có nobackup** - là data mới hoàn toàn
 - ⚠️ Chạy 1 lần duy nhất để migration
+- ⚠️ Sau khi crawler chạy, backup file sẽ lại có cả 2 loại (do crawler add ads mới)
 
 ### 3. API Server (server-chotot.js)
 - ✅ `/api/ads` hỗ trợ filter: `?category=all|1050|1020&only_backup=true|false`
@@ -28,23 +29,22 @@
   - ✔️ Checked: chỉ data mới (backup files)
   - ❌ Unchecked: bao gồm data cũ (backup + nobackup)
 
-## 📂 File Structure
+## 📂 File Structure (NGAY SAU KHI CHẠY PYTHON SCRIPT)
 
 ```
 public-chotot/data/
-├── ads-13096-tro.json           # Trọ - NEW DATA (crawler updates this)
-├── ads-13096-tro-nobackup.json  # Trọ - OLD DATA (read-only)
-├── ads-13096-nha.json           # Nhà ở - NEW DATA (crawler updates this)
-├── ads-13110-tro.json
-├── ads-13110-tro-nobackup.json
-├── ads-13110-nha.json
+├── ads-13096-tro.json           # CHỈ ads CÓ imgs_bak (backup)
+├── ads-13096-tro-nobackup.json  # CHỈ ads KHÔNG CÓ imgs_bak (old data)
+├── ads-13096-nha.json           # ALL ads (mới crawl)
+├── ads-13110-tro.json           # CHỈ ads CÓ imgs_bak
+├── ads-13110-tro-nobackup.json  # CHỈ ads KHÔNG CÓ imgs_bak
+├── ads-13110-nha.json           # ALL ads (mới crawl)
 └── ... (more areas)
 ```
 
-**Quan trọng:**
-- ✅ File backup: Luôn được crawler cập nhật
-- ❌ File nobackup: KHÔNG bao giờ được crawler động chạm (chỉ dùng cho API đọc)
-- ⚠️ Nhà ở (1020) KHÔNG có file nobackup
+**Sau khi crawler chạy tiếp:**
+- `ads-*-tro.json` và `ads-*-nha.json` sẽ có thêm ads mới (có và chưa có imgs_bak)
+- File `-nobackup` không thay đổi (read-only, snapshot data cũ)
 
 ## 🚀 Quick Start
 

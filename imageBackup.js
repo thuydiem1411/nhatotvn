@@ -18,6 +18,24 @@ if (!fs.existsSync(tempDir)) {
 // Feature flag: control whether videos are included in backup
 const BACKUP_VIDEOS = (process.env.BACKUP_VIDEOS ?? 'true').toLowerCase() === 'true';
 
+// Extract filename from URL (for storing shortened src in imgs_bak)
+function extractFilename(url) {
+    if (!url || typeof url !== 'string') return url;
+    const match = url.match(/([^\/]+\.(?:jpg|jpeg|png|webp|gif))$/i);
+    return match ? match[1] : url;
+}
+
+// Shorten Cloudinary URL to relative path (remove domain + cloudName + /image/upload/)
+function shortenCloudinaryUrl(url, cloudName) {
+    if (!url || typeof url !== 'string' || !url.includes('cloudinary.com')) return url;
+    
+    // Pattern: https://res.cloudinary.com/{cloudName}/image/upload/{path}
+    // Extract: {path}
+    const pattern = new RegExp(`https://res\\.cloudinary\\.com/${cloudName}/image/upload/(.+)$`);
+    const match = url.match(pattern);
+    return match ? match[1] : url;
+}
+
 // Generate Cloudinary signature for authenticated upload
 function generateSignature(params, apiSecret) {
     const sortedParams = Object.keys(params)
@@ -192,7 +210,7 @@ export async function backupAdImages(ad) {
             if (!mediaUrl || typeof mediaUrl !== 'string' || mediaUrl.trim() === '') {
                 // console.log(`  ⚠️  Invalid URL: ${mediaUrl}`);
                 backupResults.push({
-                    src: mediaUrl,
+                    src: extractFilename(mediaUrl),  // Store only filename
                     bak: null,
                     c: null,
                     s: 'error'
@@ -206,7 +224,7 @@ export async function backupAdImages(ad) {
             if (!optimized) {
                 // Failed to download/optimize - mark as fail and continue
                 backupResults.push({
-                    src: mediaUrl,
+                    src: extractFilename(mediaUrl),  // Store only filename
                     bak: null,
                     c: null,
                     s: 'fail'
@@ -218,7 +236,7 @@ export async function backupAdImages(ad) {
             // If video, just save URL
             if (!optimized.needsUpload) {
                 backupResults.push({
-                    src: mediaUrl,
+                    src: extractFilename(mediaUrl),  // Store only filename
                     bak: optimized.url,
                     c: null,
                     s: 'ok'
@@ -236,8 +254,8 @@ export async function backupAdImages(ad) {
             
             if (uploadResult && !uploadResult.error) {
                 backupResults.push({
-                    src: mediaUrl,
-                    bak: uploadResult.url,
+                    src: extractFilename(mediaUrl),  // Store only filename, not full URL
+                    bak: shortenCloudinaryUrl(uploadResult.url, uploadResult.cloudName),  // Store relative path only
                     c: uploadResult.cloudName,
                     s: 'ok'
                 });
@@ -245,7 +263,7 @@ export async function backupAdImages(ad) {
                 console.log(`  ✅ ${uploadResult.url} (${uploadResult.cloudName})`);
             } else {
                 backupResults.push({
-                    src: mediaUrl,
+                    src: extractFilename(mediaUrl),  // Store only filename
                     bak: null,
                     c: null,
                     s: uploadResult?.isRateLimit ? 'rate_limit' : 'fail'
@@ -258,7 +276,7 @@ export async function backupAdImages(ad) {
             
         } catch (error) {
             backupResults.push({
-                src: mediaUrl,
+                src: extractFilename(mediaUrl),  // Store only filename
                 bak: null,
                 c: null,
                 s: 'error'

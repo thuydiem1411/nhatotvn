@@ -13,7 +13,96 @@ Usage:
 import json
 import sys
 import os
+import re
 from pathlib import Path
+
+def shorten_cloudinary_url(bak_url, cloud_name):
+    """
+    Shorten Cloudinary URL to relative path
+    From: https://res.cloudinary.com/dsasutrzb/image/upload/v1772725254/chotot/170839644/file.webp
+    To: v1772725254/chotot/170839644/file.webp
+    
+    Args:
+        bak_url: Full Cloudinary URL
+        cloud_name: Cloudinary cloud name
+    
+    Returns:
+        Relative path or original URL if pattern doesn't match
+    """
+    if not bak_url or not isinstance(bak_url, str) or 'cloudinary.com' not in bak_url:
+        return bak_url
+    
+    if not cloud_name:
+        return bak_url
+    
+    # Pattern: https://res.cloudinary.com/{cloudName}/image/upload/{path}
+    pattern = f"https://res\\.cloudinary\\.com/{cloud_name}/image/upload/(.+)$"
+    match = re.search(pattern, bak_url)
+    return match.group(1) if match else bak_url
+
+def format_ad(ad):
+    """
+    Format ad data: remove redundant fields and shorten imgs_bak src to filename only
+    
+    Args:
+        ad: Ad dict to format (in-place)
+    
+    Returns:
+        Formatted ad dict
+    """
+    # Remove redundant image fields to save storage
+    for field in ['image', 'webp_image', 'thumbnail_image', 'image_thumbnails', 'special_display_images']:
+        ad.pop(field, None)
+    
+    # Shorten imgs_bak src to filename only
+    if ad.get('imgs_bak'):
+        for img in ad['imgs_bak']:
+            src = img.get('src', '')
+            
+            # Handle video dict (src is a dict with video metadata)
+            if isinstance(src, dict):
+                # Extract URL from video dict (prefer thumbnail for display)
+                video_url = src.get('thumbnail') or src.get('url') or src.get('gif_url')
+                if video_url and isinstance(video_url, str):
+                    # Extract filename from video URL
+                    match = re.search(r'([^/]+\.(?:jpg|jpeg|png|webp|gif|m3u8))$', video_url, re.IGNORECASE)
+                    if match:
+                        img['src'] = match.group(1)
+                    else:
+                        # If no filename match, use video ID or keep dict
+                        video_id = src.get('id')
+                        if video_id:
+                            img['src'] = f"video_{video_id}"
+                        # else: keep original dict (will be handled by frontend)
+            
+            # Handle string URL
+            elif isinstance(src, str) and src.startswith('http'):
+                # Extract filename from URL (e.g., "https://.../.../FILENAME.jpg" -> "FILENAME.jpg")
+                match = re.search(r'([^/]+\.(?:jpg|jpeg|png|webp|gif))$', src, re.IGNORECASE)
+                if match:
+                    img['src'] = match.group(1)
+            
+            # Shorten bak URL (Cloudinary backup URL)
+            bak = img.get('bak')
+            cloud_name = img.get('c')
+            if bak and cloud_name:
+                img['bak'] = shorten_cloudinary_url(bak, cloud_name)
+    
+    return ad
+
+def is_outdated_ad(ad):
+    """
+    Check if ad is outdated (no successful image backup)
+    
+    Args:
+        ad: Ad dict to check
+    
+    Returns:
+        True if outdated (no imgs_bak success), False otherwise
+    """
+    imgs_bak = ad.get('imgs_bak', [])
+    has_success_backup = any(img.get('s') == 'ok' for img in imgs_bak)
+    return not has_success_backup
 
 def split_ads_file(file_path):
     """
@@ -63,43 +152,42 @@ def split_ads_file(file_path):
         
         print(f"📊 Total ads: {len(ads)}")
         
-        # Separate ads into backup and nobackup
-        ads_with_backup = []
-        ads_without_backup = []
+        # Format all ads first (remove redundant fields, shorten imgs_bak src)
+        print(f"🔧 Formatting ads (removing redundant fields, shortening imgs_bak)...")
+        for ad in ads:
+            format_ad(ad)
+        
+        # Separate ads into backup (with imgs_bak success) and nobackup (without imgs_bak success)
+        ads_with_backup = []      # Ads with imgs_bak success → save to backup file (usable)
+        ads_without_backup = []   # Ads without imgs_bak success → save to nobackup file (outdated)
         
         for ad in ads:
-            # Check if ad has imgs_bak
-            imgs_bak = ad.get('imgs_bak')
-            has_backup = (
-                imgs_bak is not None and 
-                isinstance(imgs_bak, list) and 
-                len(imgs_bak) > 0
-            )
-            
-            # ALL ads go to backup file (this will be updated by crawler)
-            ads_with_backup.append(ad)
-            
-            # Only ads without backup go to nobackup file (READ-ONLY, old data)
-            if not has_backup:
-                ads_without_backup.append(ad)
+            if is_outdated_ad(ad):
+                ads_without_backup.append(ad)  # No imgs_bak success → outdated
+            else:
+                ads_with_backup.append(ad)     # Has imgs_bak success → usable
         
-        print(f"✅ Ads with backup: {len(ads_with_backup)}")
-        print(f"📦 Ads without backup (old data): {len(ads_without_backup)}")
+        print(f"✅ Ads with backup (usable data): {len(ads_with_backup)}")
+        print(f"📦 Ads without backup (outdated data): {len(ads_without_backup)}")
         
-        # Write backup file (same name, all ads)
-        backup_file = file_path
-        with open(backup_file, 'w', encoding='utf-8') as f:
+        # Verify total count
+        if len(ads_with_backup) + len(ads_without_backup) != len(ads):
+            print(f"⚠️  WARNING: Total mismatch! {len(ads_with_backup)} + {len(ads_without_backup)} != {len(ads)}")
+        
+        # Write original file (keep name, ONLY ads WITH imgs_bak success - usable data)
+        original_file = file_path
+        with open(original_file, 'w', encoding='utf-8') as f:
             json.dump(ads_with_backup, f, ensure_ascii=False, separators=(',', ':'))
-        print(f"💾 Written backup file: {backup_file.name} ({len(ads_with_backup)} ads)")
+        print(f"💾 Written backup file: {original_file.name} ({len(ads_with_backup)} ads WITH imgs_bak success - USABLE DATA)")
         
-        # Write nobackup file (new name, only ads without backup) - ONLY FOR TRO
+        # Write nobackup file (new name, ONLY ads WITHOUT imgs_bak success - outdated) - ONLY FOR TRO
         if ads_without_backup:
             nobackup_file = file_path.parent / f"{file_path.stem}-nobackup{file_path.suffix}"
             with open(nobackup_file, 'w', encoding='utf-8') as f:
                 json.dump(ads_without_backup, f, ensure_ascii=False, separators=(',', ':'))
-            print(f"💾 Written nobackup file: {nobackup_file.name} ({len(ads_without_backup)} ads - OLD DATA)")
+            print(f"💾 Written nobackup file: {nobackup_file.name} ({len(ads_without_backup)} ads WITHOUT imgs_bak success - OUTDATED)")
         else:
-            print(f"ℹ️  No ads without backup, nobackup file not created")
+            print(f"ℹ️  No outdated ads, nobackup file not created")
         
         return {
             'file': file_path.name,
@@ -238,8 +326,8 @@ def main():
             print(f"Files processed: {len(processed_stats)}")
             print(f"Files skipped (nha - new data): {skipped_count}")
             print(f"Total ads: {total_ads}")
-            print(f"Ads with backup: {total_with_backup}")
-            print(f"Ads without backup (old data): {total_without_backup}")
+            print(f"Ads with backup (usable): {total_with_backup}")
+            print(f"Ads without backup (outdated): {total_without_backup}")
             print(f"Backup percentage: {(total_with_backup / total_ads * 100) if total_ads > 0 else 0:.1f}%")
         else:
             print(f"No files processed (all {skipped_count} files skipped)")

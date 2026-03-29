@@ -70,11 +70,12 @@ python split_ads_backup.py --category=tro
 ```
 
 **Expected Results:**
-- Backup file (tro): `ads-13096-tro.json` (contains ALL ads)
-- Nobackup file (tro): `ads-13096-tro-nobackup.json` (contains only old ads without imgs_bak)
-- Backup file (nha): `ads-13096-nha.json` (contains ALL ads)
+- Backup file (tro): `ads-13096-tro.json` (CHỈ chứa ads CÓ imgs_bak)
+- Nobackup file (tro): `ads-13096-tro-nobackup.json` (CHỈ chứa ads KHÔNG CÓ imgs_bak)
+- Backup file (nha): `ads-13096-nha.json` (chứa ALL ads - vì là data mới)
 - **NO nobackup file for nha** (new data, no old data exists)
-- Console shows statistics and "Skipping 'nha' file" messages
+- Console shows: backup count + nobackup count = total (no overlap)
+- Console shows "Skipping 'nha' file" messages
 
 **Verify:**
 ```bash
