@@ -184,10 +184,13 @@ export async function backupAdImages(ad) {
         return { success: false, reason: 'Skip company ads' };
     }
     
-    // Skip if already backed up
-    if (ad.imgs_bak && ad.imgs_bak.length > 0) {
-        return { success: false, reason: 'Already backed up' };
-    }
+    // Get existing successful backups (filter: only 'ok' is truly backed up)
+    const existingBackups = ad.imgs_bak || [];
+    const successfulBackupSrcs = new Set(
+        existingBackups
+            .filter(img => img.s === 'ok') // Only count 'ok' as backed up
+            .map(img => img.src)
+    );
     
     // Get all images/videos (videos are optional via env flag)
     const allMedia = [
@@ -199,12 +202,22 @@ export async function backupAdImages(ad) {
         return { success: false, reason: 'No media' };
     }
     
-    // console.log(`\n📸 Backing up ${allMedia.length} media for ad ${ad.ad_id}`);
+    // Filter: only backup media NOT already successful
+    const mediaNeedBackup = allMedia.filter(url => {
+        const filename = extractFilename(url);
+        return !successfulBackupSrcs.has(filename);
+    });
+    
+    if (mediaNeedBackup.length === 0) {
+        return { success: false, reason: 'All media already backed up successfully' };
+    }
+    
+    // console.log(`\n📸 Backing up ${mediaNeedBackup.length}/${allMedia.length} media for ad ${ad.ad_id}`);
     
     const backupResults = [];
     let successCount = 0;
     
-    for (const mediaUrl of allMedia) {
+    for (const mediaUrl of mediaNeedBackup) {
         try {
             // Validate URL
             if (!mediaUrl || typeof mediaUrl !== 'string' || mediaUrl.trim() === '') {
@@ -285,11 +298,17 @@ export async function backupAdImages(ad) {
         }
     }
     
+    // Merge: keep existing successful backups + new results
+    const finalResults = [
+        ...existingBackups.filter(img => img.s === 'ok'), // Keep successful
+        ...backupResults // Add new attempts
+    ];
+    
     return {
         success: successCount > 0,
         backed_up: successCount,
-        total: allMedia.length,
-        results: backupResults  // Array of objects with metadata
+        total: mediaNeedBackup.length,
+        results: finalResults  // Array of objects with metadata (old 'ok' + new attempts)
     };
 }
 

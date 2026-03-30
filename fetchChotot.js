@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import axios from "axios";
 import fs from "fs";
 import path from "path";
@@ -21,6 +22,11 @@ const CATEGORY_DISPLAY_NAMES = {
     '1050': 'Trọ',
     '1020': 'Nhà ở'
 };
+
+// Crawl cycle strategy (from ENV)
+// true  -> BACKUP first, then CRAWL
+// false -> CRAWL first, then BACKUP (default)
+const BACKUP_FIRST = (process.env.BACKUP_FIRST ?? 'false').toLowerCase() === 'true';
 
 // Thứ tự area cần crawl luân phiên
 const areaOrder = [
@@ -590,9 +596,16 @@ async function fetchAllPages() {
     try {
         ensureDataDir();
         
-        // Execute crawl + backup phases
-        await crawlAllAreas();
-        await backupAllAreas();
+        // Execute phases based on BACKUP_FIRST env
+        if (BACKUP_FIRST) {
+            // Strategy 1: BACKUP first, then CRAWL
+            await backupAllAreas();
+            await crawlAllAreas();
+        } else {
+            // Strategy 2: CRAWL first, then BACKUP (default)
+            await crawlAllAreas();
+            await backupAllAreas();
+        }
         
         console.log(`\n🎉 Hoàn thành chu kỳ crawl + backup!`);
         countGetPhoneFailed = 0;
