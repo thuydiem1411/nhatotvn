@@ -76,44 +76,70 @@ function cleanAdData(ad) {
     return ad;
 }
 
-// Check if ad needs image backup (smarter logic with length comparison)
+// Extract filename from URL (used to match imgs_bak with images)
+function extractFilename(url) {
+    if (!url || typeof url !== 'string') return '';
+    // Handle video dict with metadata
+    if (typeof url === 'object') {
+        const videoUrl = url.thumbnail || url.url || url.gif_url || '';
+        const match = videoUrl.match(/([^/]+\.(jpg|jpeg|png|webp|gif|m3u8))$/i);
+        return match ? match[1] : `video_${url.id || 'unknown'}`;
+    }
+    // Extract filename from URL string
+    const match = url.match(/([^/]+\.(jpg|jpeg|png|webp|gif))$/i);
+    return match ? match[1] : '';
+}
+
+// Check if ad needs image backup (filename coverage check)
 function needsBackup(ad) {
     // Must be personal ad
     if (ad.company_ad === true) return false;
     
     // Must have media
-    const mediaCount = (ad.images?.length || 0) + (ad.videos?.length || 0);
-    if (mediaCount === 0) return false;
+    const images = ad.images || [];
+    const videos = ad.videos || [];
+    const allMedia = [...images, ...videos];
+    if (allMedia.length === 0) return false;
     
     // No imgs_bak → needs backup
     if (!ad.imgs_bak || ad.imgs_bak.length === 0) return true;
     
-    // Filter imgs_bak: only count valid attempts (ok, rate_limit)
-    // Exclude: fail, error (those are hopeless, should retry)
-    const validBackups = ad.imgs_bak.filter(img => img.s === 'ok' || img.s === 'rate_limit');
+    // Filter imgs_bak: only count successful backups ('ok' only)
+    const successfulBackups = ad.imgs_bak.filter(img => img.s === 'ok');
     
-    // Has imgs_bak but all failed/error → clear and retry
-    if (validBackups.length === 0) {
-        // Clear failed imgs_bak to force retry
+    // Has imgs_bak but no success → clear and retry
+    if (successfulBackups.length === 0) {
         console.log(`   🔄 Clearing ${ad.imgs_bak.length} failed imgs_bak for ad ${ad.ad_id}`);
         ad.imgs_bak = [];
         return true;
     }
     
-    // Has some success: check if has at least one 'ok'
-    const hasSuccess = validBackups.some(img => img.s === 'ok');
-    if (!hasSuccess) {
-        // Only has rate_limit, no success yet → needs retry
+    // Quick check: imgs_bak < images → definitely need backup
+    if (successfulBackups.length < allMedia.length) {
+        console.log(`   📊 Length check for ad ${ad.ad_id}: imgs_bak=${successfulBackups.length} < media=${allMedia.length}`);
         return true;
     }
     
-    // Compare length: valid backups vs media count
-    if (validBackups.length < mediaCount) {
-        console.log(`   📊 Length mismatch for ad ${ad.ad_id}: imgs_bak=${validBackups.length}, media=${mediaCount}`);
+    // Full check: imgs_bak >= images → check filename coverage
+    // Build set of backed-up filenames
+    const backedUpSrcs = new Set(successfulBackups.map(img => img.src));
+    
+    // Extract filenames from all media URLs
+    const mediaFilenames = allMedia.map(url => extractFilename(url));
+    
+    // Check if ALL image filenames are covered
+    const allCovered = mediaFilenames.every(filename => {
+        if (!filename) return false; // Invalid filename
+        return backedUpSrcs.has(filename);
+    });
+    
+    if (!allCovered) {
+        const missing = mediaFilenames.filter(f => f && !backedUpSrcs.has(f)).length;
+        console.log(`   📊 Coverage check for ad ${ad.ad_id}: ${missing} images not backed up`);
         return true;
     }
     
-    // Same length + has success → skip
+    // All images covered → skip
     return false;
 }
 

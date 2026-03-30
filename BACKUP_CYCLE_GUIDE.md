@@ -40,14 +40,18 @@ Loop:
 ### Fix 1: Recovery Clear Only Failed imgs_bak
 - **OLD:** Clear toàn bộ imgs_bak khi recovery
 - **NEW:** Giữ lại `s === 'ok'`, chỉ xóa failed
-- **Code:** `fetchChotot.js` mergeByAdId line ~338-357
+- **Code:** `fetchChotot.js` mergeByAdId line ~350-370
 
-### Fix 2: needsBackup Filter Before Compare  
-- **OLD:** Count ALL imgs_bak vs mediaCount
-- **NEW:** Count only 'ok' + 'rate_limit' (exclude fail/error)
-- **Code:** `fetchChotot.js` needsBackup line ~64-103
+### Fix 2: needsBackup Check Filename Coverage
+- **OLD:** Count 'ok' + 'rate_limit' vs mediaCount (so sánh bằng)
+- **NEW:** Check xem tất cả image filenames có trong imgs_bak ('ok' only) chưa
+- **Code:** `fetchChotot.js` needsBackup line ~92-148
+- **Logic:**
+  1. Quick check: `imgs_bak.length < images.length` → need backup
+  2. Full check: Build Set of backed-up filenames, check coverage
+  3. Allow surplus: 10 imgs_bak for 8 images OK nếu 8 filenames match
 
-### Fix 3: backupAdImages Skip Duplicates ⭐
+### Fix 3: backupAdImages Skip Duplicates
 - **OLD:** Skip if `imgs_bak.length > 0` → 509/511 ads skipped
 - **NEW:** Skip only images với `s === 'ok'`, backup còn lại
 - **Code:** `imageBackup.js` backupAdImages line ~187-220, ~300-313
@@ -55,11 +59,11 @@ Loop:
 
 ## Status Classification
 
-**Valid (COUNT for compare):**
-- `'ok'` ✅ - Backed up successfully
-- `'rate_limit'` ⏳ - Temporary, can retry
+**Valid (for coverage check):**
+- `'ok'` ✅ - Only count 'ok' as truly backed up
 
 **Invalid (IGNORE):**
+- `'rate_limit'` ⏳ - Temporary fail, need retry
 - `'fail'` ❌ - Download/upload failed
 - `'error'` ❌ - Other errors
 
@@ -118,6 +122,75 @@ node fetchChotot.js
 🎉 Hoàn thành chu kỳ!
 
 → Next cycle: BACKUP again
+```
+
+## needsBackup Logic Examples
+
+### Case 1: imgs_bak < images (Quick check)
+```json
+{
+  "images": ["url1.jpg", "url2.jpg", "url3.jpg"],
+  "imgs_bak": [
+    {"src": "file1.jpg", "s": "ok"},
+    {"src": "file2.jpg", "s": "ok"}
+  ]
+}
+→ imgs_bak.length (2) < images.length (3)
+→ 📊 Length check: imgs_bak=2 < media=3
+→ return true (need backup)
+```
+
+### Case 2: imgs_bak >= images, full coverage
+```json
+{
+  "images": ["url1.jpg", "url2.jpg", "url3.jpg"],
+  "imgs_bak": [
+    {"src": "file1.jpg", "s": "ok"},
+    {"src": "file2.jpg", "s": "ok"},
+    {"src": "file3.jpg", "s": "ok"}
+  ]
+}
+→ Extract filenames: ["file1.jpg", "file2.jpg", "file3.jpg"]
+→ backedUpSrcs = Set(["file1.jpg", "file2.jpg", "file3.jpg"])
+→ All covered? YES
+→ return false (skip backup)
+```
+
+### Case 3: imgs_bak dư, full coverage (OK!)
+```json
+{
+  "images": ["url1.jpg", "url2.jpg"],
+  "imgs_bak": [
+    {"src": "file1.jpg", "s": "ok"},
+    {"src": "file2.jpg", "s": "ok"},
+    {"src": "old1.jpg", "s": "ok"},  // ← Dư (old image)
+    {"src": "old2.jpg", "s": "ok"}   // ← Dư (old image)
+  ]
+}
+→ imgs_bak.length (4) >= images.length (2) ✅
+→ Extract filenames: ["file1.jpg", "file2.jpg"]
+→ backedUpSrcs = Set(["file1.jpg", "file2.jpg", "old1.jpg", "old2.jpg"])
+→ All covered? YES (file1 & file2 in set)
+→ return false (skip, imgs_bak dư OK)
+```
+
+### Case 4: imgs_bak dư, missing coverage
+```json
+{
+  "images": ["url1.jpg", "url2.jpg", "url3.jpg"],
+  "imgs_bak": [
+    {"src": "file1.jpg", "s": "ok"},
+    {"src": "file2.jpg", "s": "ok"},
+    {"src": "old1.jpg", "s": "ok"},
+    {"src": "old2.jpg", "s": "ok"}
+  ]
+}
+→ imgs_bak.length (4) >= images.length (3)
+→ Extract filenames: ["file1.jpg", "file2.jpg", "file3.jpg"]
+→ backedUpSrcs = Set(["file1.jpg", "file2.jpg", "old1.jpg", "old2.jpg"])
+→ file3.jpg NOT in set
+→ 📊 Coverage check: 1 images not backed up
+→ return true (need backup for file3.jpg)
 ```
 
 ---
