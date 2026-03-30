@@ -54,11 +54,16 @@ Loop:
   5. Allow surplus: 10 imgs_bak for 8 images OK nếu 8 filenames match
 - **Benefit:** Chính xác, không thêm ads không cần thiết vào backup queue
 
-### Fix 3: backupAdImages Skip Duplicates
-- **OLD:** Skip if `imgs_bak.length > 0` → 509/511 ads skipped
-- **NEW:** Skip only images với `s === 'ok'`, backup còn lại
-- **Code:** `imageBackup.js` backupAdImages line ~187-220, ~300-313
-- **Result:** Backup ~509 ads thay vì 2
+### Fix 3: backupAdImages Skip Duplicates & Sync extractFilename
+- **OLD:** Skip if `imgs_bak.length > 0`, extractFilename return full URL if no match
+- **NEW:** Skip only 'ok' images, filter empty filenames, sync extractFilename
+- **Code:** `imageBackup.js` backupAdImages line ~187-220, extractFilename line ~22-34
+- **Changes:**
+  1. Build successfulBackupSrcs từ imgs_bak (`s === 'ok'`)
+  2. Filter mediaNeedBackup: `filename && !has(filename)` (also filter empty)
+  3. Sync extractFilename: return '' instead of url (match fetchChotot.js)
+  4. Add debug log to show skip reason
+- **Result:** Chỉ backup ads thực sự cần, skip chính xác
 
 ## Status Classification
 

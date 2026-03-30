@@ -20,9 +20,16 @@ const BACKUP_VIDEOS = (process.env.BACKUP_VIDEOS ?? 'true').toLowerCase() === 't
 
 // Extract filename from URL (for storing shortened src in imgs_bak)
 function extractFilename(url) {
-    if (!url || typeof url !== 'string') return url;
-    const match = url.match(/([^\/]+\.(?:jpg|jpeg|png|webp|gif))$/i);
-    return match ? match[1] : url;
+    if (!url || typeof url !== 'string') return '';
+    // Handle video dict with metadata
+    if (typeof url === 'object') {
+        const videoUrl = url.thumbnail || url.url || url.gif_url || '';
+        const match = videoUrl.match(/([^/]+\.(jpg|jpeg|png|webp|gif|m3u8))$/i);
+        return match ? match[1] : `video_${url.id || 'unknown'}`;
+    }
+    // Extract filename from URL string
+    const match = url.match(/([^/]+\.(jpg|jpeg|png|webp|gif))$/i);
+    return match ? match[1] : '';
 }
 
 // Shorten Cloudinary URL to relative path (remove domain + cloudName + /image/upload/)
@@ -205,14 +212,15 @@ export async function backupAdImages(ad) {
     // Filter: only backup media NOT already successful
     const mediaNeedBackup = allMedia.filter(url => {
         const filename = extractFilename(url);
-        return !successfulBackupSrcs.has(filename);
+        return filename && !successfulBackupSrcs.has(filename); // Also filter empty filenames
     });
     
     if (mediaNeedBackup.length === 0) {
+        console.log(`  ⏭️  Skip ad ${ad.ad_id}: All media already backed up (${successfulBackupSrcs.size} successful, ${allMedia.length} media)`);
         return { success: false, reason: 'All media already backed up successfully' };
     }
     
-    // console.log(`\n📸 Backing up ${mediaNeedBackup.length}/${allMedia.length} media for ad ${ad.ad_id}`);
+    console.log(`\n📸 Backing up ${mediaNeedBackup.length}/${allMedia.length} media for ad ${ad.ad_id}`);
     
     const backupResults = [];
     let successCount = 0;
