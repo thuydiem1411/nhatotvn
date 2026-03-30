@@ -191,12 +191,12 @@ export async function backupAdImages(ad) {
         return { success: false, reason: 'Skip company ads' };
     }
     
-    // Get existing successful backups (filter: only 'ok' is truly backed up)
+    // Any imgs_bak row counts as attempted (ok/fail/rate_limit/error) — do not re-try dead CDN keys
     const existingBackups = ad.imgs_bak || [];
-    const successfulBackupSrcs = new Set(
+    const attemptedSrcs = new Set(
         existingBackups
-            .filter(img => img.s === 'ok') // Only count 'ok' as backed up
-            .map(img => img.src)
+            .map(img => (typeof img?.src === 'string' ? img.src : ''))
+            .filter(f => f.length > 0)
     );
     
     // Get all images/videos (videos are optional via env flag)
@@ -209,15 +209,15 @@ export async function backupAdImages(ad) {
         return { success: false, reason: 'No media' };
     }
     
-    // Filter: only backup media NOT already successful
+    // Only backup media whose filename has never been attempted
     const mediaNeedBackup = allMedia.filter(url => {
         const filename = extractFilename(url);
-        return filename && !successfulBackupSrcs.has(filename); // Also filter empty filenames
+        return filename && !attemptedSrcs.has(filename);
     });
     
     if (mediaNeedBackup.length === 0) {
-        console.log(`  ⏭️  Skip ad ${ad.ad_id}: All media already backed up (${successfulBackupSrcs.size} successful, ${allMedia.length} media)`);
-        return { success: false, reason: 'All media already backed up successfully' };
+        console.log(`  ⏭️  Skip ad ${ad.ad_id}: All media already attempted (${attemptedSrcs.size} entries, ${allMedia.length} media)`);
+        return { success: false, reason: 'All media already attempted' };
     }
     
     console.log(`\n📸 Backing up ${mediaNeedBackup.length}/${allMedia.length} media for ad ${ad.ad_id}`);
@@ -306,17 +306,14 @@ export async function backupAdImages(ad) {
         }
     }
     
-    // Merge: keep existing successful backups + new results
-    const finalResults = [
-        ...existingBackups.filter(img => img.s === 'ok'), // Keep successful
-        ...backupResults // Add new attempts
-    ];
+    // Merge: keep all prior attempts + new attempts (no drop of fail rows)
+    const finalResults = [...existingBackups, ...backupResults];
     
     return {
         success: successCount > 0,
         backed_up: successCount,
         total: mediaNeedBackup.length,
-        results: finalResults  // Array of objects with metadata (old 'ok' + new attempts)
+        results: finalResults
     };
 }
 

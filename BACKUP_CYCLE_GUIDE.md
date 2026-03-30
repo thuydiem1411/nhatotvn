@@ -42,38 +42,28 @@ Loop:
 - **NEW:** Giữ lại `s === 'ok'`, chỉ xóa failed
 - **Code:** `fetchChotot.js` mergeByAdId line ~350-370
 
-### Fix 2: needsBackup Check Filename Coverage
-- **OLD:** Quick check length, sau đó check coverage
-- **NEW:** LUÔN check filename coverage (no quick check)
-- **Code:** `fetchChotot.js` needsBackup line ~92-130
+### Fix 2: needsBackup — attempt-based filename coverage
+- **NEW:** Mỗi filename ảnh/video hiện tại phải có **ít nhất một dòng** trong `imgs_bak` (bất kỳ `s`), không chỉ `ok`.
+- **Code:** `fetchChotot.js` `needsBackup`
 - **Logic:**
-  1. Filter imgs_bak → chỉ lấy `s === 'ok'`
-  2. Build Set of backed-up filenames
-  3. Extract filenames from all media URLs
-  4. Check if ALL filenames covered
-  5. Allow surplus: 10 imgs_bak for 8 images OK nếu 8 filenames match
-- **Benefit:** Chính xác, không thêm ads không cần thiết vào backup queue
+  1. Build `attemptedSrcs` từ **mọi** `imgs_bak[].src` (string)
+  2. Extract filename từ mọi URL media (bỏ filename rỗng)
+  3. Nếu mọi filename đều có trong `attemptedSrcs` → **không** cần backup (kể cả toàn `fail` — CDN hết key không retry vòng lặp)
+  4. Không xóa `imgs_bak` fail ở đây; chỉ **recovery** (tin ra khỏi nobackup) mới strip fail và giữ `ok` để thử lại
+- **Benefit:** Hàng đợi backup không kẹt vì ảnh chết; vẫn backup thêm khi có filename mới chưa có trong `imgs_bak`
 
-### Fix 3: backupAdImages Skip Duplicates & Sync extractFilename
-- **OLD:** Skip if `imgs_bak.length > 0`, extractFilename return full URL if no match
-- **NEW:** Skip only 'ok' images, filter empty filenames, sync extractFilename
-- **Code:** `imageBackup.js` backupAdImages line ~187-220, extractFilename line ~22-34
-- **Changes:**
-  1. Build successfulBackupSrcs từ imgs_bak (`s === 'ok'`)
-  2. Filter mediaNeedBackup: `filename && !has(filename)` (also filter empty)
-  3. Sync extractFilename: return '' instead of url (match fetchChotot.js)
-  4. Add debug log to show skip reason
-- **Result:** Chỉ backup ads thực sự cần, skip chính xác
+### Fix 3: backupAdImages — skip theo “đã thử”, merge giữ fail
+- **NEW:** Coi mọi `imgs_bak` entry là đã attempt; chỉ upload media chưa có filename trong set đó.
+- **Code:** `imageBackup.js` `backupAdImages`
+- **Merge:** `finalResults = [...existingBackups, ...backupResults]` — không bỏ dòng `fail`/`rate_limit` khi thêm ảnh mới.
 
 ## Status Classification
 
-**Valid (for coverage check):**
-- `'ok'` ✅ - Only count 'ok' as truly backed up
+**Trong crawl/backup cycle (`needsBackup` / `backupAdImages`):**
+- Mọi `s` (`ok`, `fail`, `rate_limit`, `error`) đều tính là **đã attempt** cho filename đó — không upload lại cùng filename trong luồng thường.
 
-**Invalid (IGNORE):**
-- `'rate_limit'` ⏳ - Temporary fail, need retry
-- `'fail'` ❌ - Download/upload failed
-- `'error'` ❌ - Other errors
+**Script `split_ads_backup.py` (tách usable / nobackup):**
+- Vẫn dùng **ít nhất một** `s === 'ok'` để coi ad là “có backup dùng được”. Ad chỉ toàn `fail` vẫn vào nobackup — **cố ý**, khác với “đã xử lý xong” trong cycle.
 
 ## Test
 
@@ -134,7 +124,7 @@ node fetchChotot.js
 
 ## needsBackup Logic Examples
 
-### Case 1: imgs_bak < images (Quick check)
+### Case 1: Thiếu filename (chưa attempt đủ)
 ```json
 {
   "images": ["url1.jpg", "url2.jpg", "url3.jpg"],
@@ -143,12 +133,11 @@ node fetchChotot.js
     {"src": "file2.jpg", "s": "ok"}
   ]
 }
-→ imgs_bak.length (2) < images.length (3)
-→ 📊 Length check: imgs_bak=2 < media=3
-→ return true (need backup)
+→ attemptedSrcs = Set(["file1.jpg", "file2.jpg"])
+→ file3 chưa có → return true (need backup)
 ```
 
-### Case 2: imgs_bak >= images, full coverage
+### Case 2: Đủ filename, toàn ok
 ```json
 {
   "images": ["url1.jpg", "url2.jpg", "url3.jpg"],
@@ -158,67 +147,48 @@ node fetchChotot.js
     {"src": "file3.jpg", "s": "ok"}
   ]
 }
-→ Extract filenames: ["file1.jpg", "file2.jpg", "file3.jpg"]
-→ backedUpSrcs = Set(["file1.jpg", "file2.jpg", "file3.jpg"])
-→ All covered? YES
-→ return false (skip backup)
+→ All filenames in attemptedSrcs → return false
 ```
 
-### Case 3: imgs_bak dư, full coverage (OK!)
+### Case 3: Đủ filename nhưng toàn fail (CDN chết) — không retry cycle
+```json
+{
+  "images": ["url1.jpg", "url2.jpg"],
+  "imgs_bak": [
+    {"src": "file1.jpg", "s": "fail"},
+    {"src": "file2.jpg", "s": "fail"}
+  ]
+}
+→ attemptedSrcs có đủ file1, file2 → return false (coi “đã xử lý”)
+```
+
+### Case 4: imgs_bak dư, vẫn đủ coverage
 ```json
 {
   "images": ["url1.jpg", "url2.jpg"],
   "imgs_bak": [
     {"src": "file1.jpg", "s": "ok"},
     {"src": "file2.jpg", "s": "ok"},
-    {"src": "old1.jpg", "s": "ok"},  // ← Dư (old image)
-    {"src": "old2.jpg", "s": "ok"}   // ← Dư (old image)
+    {"src": "old1.jpg", "s": "ok"}
   ]
 }
-→ imgs_bak.length (4) >= images.length (2) ✅
-→ Extract filenames: ["file1.jpg", "file2.jpg"]
-→ backedUpSrcs = Set(["file1.jpg", "file2.jpg", "old1.jpg", "old2.jpg"])
-→ All covered? YES (file1 & file2 in set)
-→ return false (skip, imgs_bak dư OK)
+→ return false
 ```
 
-### Case 4: imgs_bak dư, missing coverage
+### Case 5: Duplicate URL trong images
 ```json
 {
-  "images": ["url1.jpg", "url2.jpg", "url3.jpg"],
-  "imgs_bak": [
-    {"src": "file1.jpg", "s": "ok"},
-    {"src": "file2.jpg", "s": "ok"},
-    {"src": "old1.jpg", "s": "ok"},
-    {"src": "old2.jpg", "s": "ok"}
-  ]
-}
-→ imgs_bak.length (4) >= images.length (3)
-→ Extract filenames: ["file1.jpg", "file2.jpg", "file3.jpg"]
-→ backedUpSrcs = Set(["file1.jpg", "file2.jpg", "old1.jpg", "old2.jpg"])
-→ file3.jpg NOT in set
-→ 📊 Coverage check: 1 images not backed up
-→ return true (need backup for file3.jpg)
-```
-
-### Case 5: imgs_bak < images, NHƯNG full coverage (Duplicate URLs)
-```json
-{
-  "images": ["url1.jpg", "url1.jpg", "url2.jpg"],  // ← url1 duplicate
+  "images": ["url1.jpg", "url1.jpg", "url2.jpg"],
   "imgs_bak": [
     {"src": "file1.jpg", "s": "ok"},
     {"src": "file2.jpg", "s": "ok"}
   ]
 }
-→ imgs_bak.length (2) < images.length (3)
-→ Extract filenames: ["file1.jpg", "file1.jpg", "file2.jpg"]
-→ backedUpSrcs = Set(["file1.jpg", "file2.jpg"])
-→ All covered? YES (file1 duplicate, file2 covered)
-→ return false (skip, no quick check bypass) ✅
+→ mediaFilenames unique coverage: file1 + file2 OK → return false
 ```
 
-**Key improvement:** Không có quick check nữa → không bị false positive
+**Recovery:** Tin từ nobackup merge sẽ bỏ entry không `ok`, nên filename fail có thể được thử lại sau recovery.
 
 ---
 
-Generated: 2026-03-28
+Generated: 2026-03-28 · Updated: 2026-03-30 (attempt-based coverage)

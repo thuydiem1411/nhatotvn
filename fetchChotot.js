@@ -90,7 +90,8 @@ function extractFilename(url) {
     return match ? match[1] : '';
 }
 
-// Check if ad needs image backup (filename coverage check)
+// Check if ad needs image backup: every image filename must have been attempted once (any status).
+// Do not clear failed entries here; only recovery clears non-ok so re-crawled ads can retry.
 function needsBackup(ad) {
     // Must be personal ad
     if (ad.company_ad === true) return false;
@@ -104,40 +105,32 @@ function needsBackup(ad) {
     // No imgs_bak → needs backup
     if (!ad.imgs_bak || ad.imgs_bak.length === 0) return true;
     
-    // Filter imgs_bak: only count successful backups ('ok' only)
-    const successfulBackups = ad.imgs_bak.filter(img => img.s === 'ok');
-    
-    // Has imgs_bak but no success → clear and retry
-    if (successfulBackups.length === 0) {
-        console.log(`   🔄 Clearing ${ad.imgs_bak.length} failed imgs_bak for ad ${ad.ad_id}`);
-        ad.imgs_bak = [];
-        return true;
-    }
-    
-    // ALWAYS check filename coverage (no quick length check)
-    // Build set of backed-up filenames
-    const backedUpSrcs = new Set(successfulBackups.map(img => img.src));
+    // All imgs_bak entries count as "attempted" (ok / fail / rate_limit / error — no retry for dead URLs)
+    const attemptedSrcs = new Set(
+        (ad.imgs_bak || [])
+            .map(img => (typeof img?.src === 'string' ? img.src : ''))
+            .filter(f => f.length > 0)
+    );
     
     // Extract filenames from all media URLs (filter out invalid)
     const mediaFilenames = allMedia
         .map(url => extractFilename(url))
-        .filter(f => f && f.length > 0); // Remove invalid filenames
+        .filter(f => f && f.length > 0);
     
     // If no valid filenames → skip (cannot verify)
     if (mediaFilenames.length === 0) {
         return false;
     }
     
-    // Check if ALL valid filenames are covered
-    const allCovered = mediaFilenames.every(filename => backedUpSrcs.has(filename));
+    const allAttempted = mediaFilenames.every(filename => attemptedSrcs.has(filename));
     
-    if (!allCovered) {
-        const missing = mediaFilenames.filter(f => !backedUpSrcs.has(f)).length;
-        console.log(`   📊 Coverage check for ad ${ad.ad_id}: ${missing} images not backed up (imgs_bak=${successfulBackups.length}, media=${allMedia.length})`);
+    if (!allAttempted) {
+        const missing = mediaFilenames.filter(f => !attemptedSrcs.has(f)).length;
+        console.log(`   📊 Coverage check for ad ${ad.ad_id}: ${missing} images not attempted yet (imgs_bak=${ad.imgs_bak.length}, media=${allMedia.length})`);
         return true;
     }
     
-    // All images covered → skip (even if imgs_bak dư)
+    // Every filename has an imgs_bak row (even if fail) → skip
     return false;
 }
 
