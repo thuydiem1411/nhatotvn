@@ -114,13 +114,7 @@ function needsBackup(ad) {
         return true;
     }
     
-    // Quick check: imgs_bak < images → definitely need backup
-    if (successfulBackups.length < allMedia.length) {
-        console.log(`   📊 Length check for ad ${ad.ad_id}: imgs_bak=${successfulBackups.length} < media=${allMedia.length}`);
-        return true;
-    }
-    
-    // Full check: imgs_bak >= images → check filename coverage
+    // ALWAYS check filename coverage (no quick length check)
     // Build set of backed-up filenames
     const backedUpSrcs = new Set(successfulBackups.map(img => img.src));
     
@@ -135,11 +129,11 @@ function needsBackup(ad) {
     
     if (!allCovered) {
         const missing = mediaFilenames.filter(f => f && !backedUpSrcs.has(f)).length;
-        console.log(`   📊 Coverage check for ad ${ad.ad_id}: ${missing} images not backed up`);
+        console.log(`   📊 Coverage check for ad ${ad.ad_id}: ${missing} images not backed up (imgs_bak=${successfulBackups.length}, media=${allMedia.length})`);
         return true;
     }
     
-    // All images covered → skip
+    // All images covered → skip (even if imgs_bak dư)
     return false;
 }
 

@@ -43,13 +43,16 @@ Loop:
 - **Code:** `fetchChotot.js` mergeByAdId line ~350-370
 
 ### Fix 2: needsBackup Check Filename Coverage
-- **OLD:** Count 'ok' + 'rate_limit' vs mediaCount (so sánh bằng)
-- **NEW:** Check xem tất cả image filenames có trong imgs_bak ('ok' only) chưa
-- **Code:** `fetchChotot.js` needsBackup line ~92-148
+- **OLD:** Quick check length, sau đó check coverage
+- **NEW:** LUÔN check filename coverage (no quick check)
+- **Code:** `fetchChotot.js` needsBackup line ~92-130
 - **Logic:**
-  1. Quick check: `imgs_bak.length < images.length` → need backup
-  2. Full check: Build Set of backed-up filenames, check coverage
-  3. Allow surplus: 10 imgs_bak for 8 images OK nếu 8 filenames match
+  1. Filter imgs_bak → chỉ lấy `s === 'ok'`
+  2. Build Set of backed-up filenames
+  3. Extract filenames from all media URLs
+  4. Check if ALL filenames covered
+  5. Allow surplus: 10 imgs_bak for 8 images OK nếu 8 filenames match
+- **Benefit:** Chính xác, không thêm ads không cần thiết vào backup queue
 
 ### Fix 3: backupAdImages Skip Duplicates
 - **OLD:** Skip if `imgs_bak.length > 0` → 509/511 ads skipped
@@ -192,6 +195,24 @@ node fetchChotot.js
 → 📊 Coverage check: 1 images not backed up
 → return true (need backup for file3.jpg)
 ```
+
+### Case 5: imgs_bak < images, NHƯNG full coverage (Duplicate URLs)
+```json
+{
+  "images": ["url1.jpg", "url1.jpg", "url2.jpg"],  // ← url1 duplicate
+  "imgs_bak": [
+    {"src": "file1.jpg", "s": "ok"},
+    {"src": "file2.jpg", "s": "ok"}
+  ]
+}
+→ imgs_bak.length (2) < images.length (3)
+→ Extract filenames: ["file1.jpg", "file1.jpg", "file2.jpg"]
+→ backedUpSrcs = Set(["file1.jpg", "file2.jpg"])
+→ All covered? YES (file1 duplicate, file2 covered)
+→ return false (skip, no quick check bypass) ✅
+```
+
+**Key improvement:** Không có quick check nữa → không bị false positive
 
 ---
 
