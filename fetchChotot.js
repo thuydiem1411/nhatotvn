@@ -484,11 +484,18 @@ async function backupAdsInArea(adsNeedBackup, areaFile, adsData, areaId, categor
 async function fetchPage(page, category) {
     const limit = parseInt(PARAMS.limit);
     const offset = (page - 1) * limit;
-    const url = `${BASE_URL}?${new URLSearchParams({
+    const queryParams = {
         ...PARAMS,
         cg: category, // Use category param
         page: page.toString(),
         o: offset.toString()
+    };
+    // Keep house crawl capped at <= 5,000,000.
+    if (category === "1020") {
+        queryParams.price = "0-5000000";
+    }
+    const url = `${BASE_URL}?${new URLSearchParams({
+        ...queryParams
     })}`;
     const res = await axios.get(url, { timeout: 20000 });
     return res.data;
