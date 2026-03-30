@@ -67,6 +67,20 @@ console.log(`✅ Loaded ${cloudinaryAccounts.length} Cloudinary account(s)`);
 // Sequential pointer: use one account until exhausted, then move to next (no round-robin)
 let currentAccountIndex = 0;
 
+// Reset runtime selection state so a fresh run can re-check all accounts.
+export function resetCloudinaryAccountsState() {
+    for (const account of cloudinaryAccounts) {
+        account.disabled = false;
+        account.remainingCredits = null;
+        account.lastUsageCheck = 0;
+        account.uploadCount = 0;
+    }
+    currentAccountIndex = 0;
+    if (cloudinaryAccounts.length > 0) {
+        console.log('♻️  Cloudinary account state reset (disabled flags cleared).');
+    }
+}
+
 // Fetch account usage/credits from Cloudinary API
 async function refreshAccountUsage(account) {
     try {

@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import cron from "node-cron";
 import crypto from "crypto";
 import { backupAdImages } from "./imageBackup.js";
+import { resetCloudinaryAccountsState } from "./cloudinaryConfig.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -618,6 +619,8 @@ async function fetchAllPages() {
     isRunning = true;
 
     try {
+        // Reset account runtime flags so each run starts fresh.
+        resetCloudinaryAccountsState();
         ensureDataDir();
         
         // Execute phases based on BACKUP_FIRST env
