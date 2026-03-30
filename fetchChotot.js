@@ -118,17 +118,21 @@ function needsBackup(ad) {
     // Build set of backed-up filenames
     const backedUpSrcs = new Set(successfulBackups.map(img => img.src));
     
-    // Extract filenames from all media URLs
-    const mediaFilenames = allMedia.map(url => extractFilename(url));
+    // Extract filenames from all media URLs (filter out invalid)
+    const mediaFilenames = allMedia
+        .map(url => extractFilename(url))
+        .filter(f => f && f.length > 0); // Remove invalid filenames
     
-    // Check if ALL image filenames are covered
-    const allCovered = mediaFilenames.every(filename => {
-        if (!filename) return false; // Invalid filename
-        return backedUpSrcs.has(filename);
-    });
+    // If no valid filenames → skip (cannot verify)
+    if (mediaFilenames.length === 0) {
+        return false;
+    }
+    
+    // Check if ALL valid filenames are covered
+    const allCovered = mediaFilenames.every(filename => backedUpSrcs.has(filename));
     
     if (!allCovered) {
-        const missing = mediaFilenames.filter(f => f && !backedUpSrcs.has(f)).length;
+        const missing = mediaFilenames.filter(f => !backedUpSrcs.has(f)).length;
         console.log(`   📊 Coverage check for ad ${ad.ad_id}: ${missing} images not backed up (imgs_bak=${successfulBackups.length}, media=${allMedia.length})`);
         return true;
     }
