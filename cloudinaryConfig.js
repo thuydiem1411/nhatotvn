@@ -41,6 +41,7 @@ export const cloudinaryAccounts = [];
 let accountIndex = 1;
 while (env[`CLOUDINARY_CLOUD_NAME_${accountIndex}`]) {
     const account = {
+        envIndex: accountIndex,
         cloudName: env[`CLOUDINARY_CLOUD_NAME_${accountIndex}`],
         apiKey: env[`CLOUDINARY_API_KEY_${accountIndex}`],
         apiSecret: env[`CLOUDINARY_API_SECRET_${accountIndex}`],
@@ -63,6 +64,13 @@ if (cloudinaryAccounts.length === 0) {
 }
 
 console.log(`✅ Loaded ${cloudinaryAccounts.length} Cloudinary account(s)`);
+if (cloudinaryAccounts.length > 0) {
+    const orderText = cloudinaryAccounts
+        .map(acc => `#${acc.envIndex}:${acc.cloudName}`)
+        .join(' -> ');
+    console.log(`🧭 Cloudinary order: ${orderText}`);
+    console.log(`🛡️ MIN_REMAINING_CREDITS=${MIN_REMAINING_CREDITS}`);
+}
 
 // Sequential pointer: use one account until exhausted, then move to next (no round-robin)
 let currentAccountIndex = 0;
@@ -124,6 +132,9 @@ export async function getUploadAccount() {
     for (let i = 0; i < cloudinaryAccounts.length; i++) {
         const index = (currentAccountIndex + i) % cloudinaryAccounts.length;
         const account = cloudinaryAccounts[index];
+        console.log(
+            `🧪 Checking Cloudinary account #${account.envIndex} ${account.cloudName} (slot=${index + 1}/${cloudinaryAccounts.length})`
+        );
         
         // Refresh usage at most once every 5 minutes per account
         const now = Date.now();
