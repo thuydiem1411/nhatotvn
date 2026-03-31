@@ -40,11 +40,14 @@ export const cloudinaryAccounts = [];
 // Parse accounts from env
 let accountIndex = 1;
 while (env[`CLOUDINARY_CLOUD_NAME_${accountIndex}`]) {
+    const cloudName = env[`CLOUDINARY_CLOUD_NAME_${accountIndex}`];
+    const apiKey = env[`CLOUDINARY_API_KEY_${accountIndex}`];
+    const apiSecret = env[`CLOUDINARY_API_SECRET_${accountIndex}`];
     const account = {
         envIndex: accountIndex,
-        cloudName: env[`CLOUDINARY_CLOUD_NAME_${accountIndex}`],
-        apiKey: env[`CLOUDINARY_API_KEY_${accountIndex}`],
-        apiSecret: env[`CLOUDINARY_API_SECRET_${accountIndex}`],
+        cloudName,
+        apiKey,
+        apiSecret,
         uploadCount: 0,        // Track upload count for round-robin
         storageUsed: 0,        // Track storage usage (optional)
         remainingCredits: null,
@@ -54,6 +57,14 @@ while (env[`CLOUDINARY_CLOUD_NAME_${accountIndex}`]) {
     
     if (account.cloudName && account.apiKey && account.apiSecret) {
         cloudinaryAccounts.push(account);
+    } else {
+        const missing = [];
+        if (!cloudName) missing.push('CLOUD_NAME');
+        if (!apiKey) missing.push('API_KEY');
+        if (!apiSecret) missing.push('API_SECRET');
+        console.warn(
+            `⚠️  Skip Cloudinary account #${accountIndex}: missing ${missing.join(', ')}`
+        );
     }
     
     accountIndex++;
