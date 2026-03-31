@@ -139,9 +139,10 @@ async function refreshAccountUsage(account) {
 // Select account sequentially: use current account until it has no credits left, then switch to next
 export async function getUploadAccount() {
     if (cloudinaryAccounts.length === 0) return null;
+    const baseIndex = currentAccountIndex;
     
     for (let i = 0; i < cloudinaryAccounts.length; i++) {
-        const index = (currentAccountIndex + i) % cloudinaryAccounts.length;
+        const index = (baseIndex + i) % cloudinaryAccounts.length;
         const account = cloudinaryAccounts[index];
         console.log(
             `🧪 Checking Cloudinary account #${account.envIndex} ${account.cloudName} (slot=${index + 1}/${cloudinaryAccounts.length})`
