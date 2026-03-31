@@ -48,7 +48,7 @@ while (env[`CLOUDINARY_CLOUD_NAME_${accountIndex}`]) {
         storageUsed: 0,        // Track storage usage (optional)
         remainingCredits: null,
         lastUsageCheck: 0,
-        disabled: false        // Permanently skipped when credits are too low
+        disabled: false        // Runtime flag (kept for compatibility)
     };
     
     if (account.cloudName && account.apiKey && account.apiSecret) {
@@ -125,8 +125,6 @@ export async function getUploadAccount() {
         const index = (currentAccountIndex + i) % cloudinaryAccounts.length;
         const account = cloudinaryAccounts[index];
         
-        if (account.disabled) continue;
-        
         // Refresh usage at most once every 5 minutes per account
         const now = Date.now();
         const FIVE_MINUTES = 5 * 60 * 1000;
@@ -148,8 +146,8 @@ export async function getUploadAccount() {
             return account;
         }
         
-        // Exhausted: disable and try next account
-        account.disabled = true;
+        // Low credits: move to next account in sequence.
+        // Do not permanently disable here to avoid hidden skips in later runs.
         console.warn(
             `⚠️  Cloudinary account ${account.cloudName} is low on credits (${account.remainingCredits?.toFixed(2)}), switching to next account.`
         );
