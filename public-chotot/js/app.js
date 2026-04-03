@@ -904,10 +904,10 @@ document.addEventListener("DOMContentLoaded", async function () {
                     <div class="detail-section">
                         <h6><i class="mdi mdi-account"></i> Người đăng</h6>
                         <div class="info-grid">
-                            <div class="info-item">
+                            <a class="info-item" href="https://www.chotot.com/user/${currentAd.account_oid}" target="_blank">
                                 <i class="mdi mdi-account-circle"></i>
                                 <span>${currentAd.full_name || currentAd.account_name || 'N/A'}</span>
-                            </div>
+                            </a>
                             <div class="info-item">
                                 <i class="mdi mdi-phone"></i>
                                 <span><a href="tel:${currentAd.phone || 'N/A'}">${currentAd.phone || 'N/A'}</a></span>
@@ -936,7 +936,8 @@ document.addEventListener("DOMContentLoaded", async function () {
                             </div>
                             <div class="info-item">
                                 <i class="mdi mdi-calendar-clock"></i>
-                                <span>Đăng: ${formatDate(currentAd.list_time)}</span>
+                                
+                                <span>Đăng: <a href="https://www.chotot.com/${currentAd.category === '1050' ? 'thue-phong-tro' : 'thue-nha-dat'}-${(currentAd.area_name).toLowerCase().replace(/ /g, '-')}-${currentAd.region_name.toLowerCase().replace(/ /g, '-')}/${currentAd.list_id}.htm" target="_blank">${formatDate(currentAd.list_time)}</a></span>
                             </div>
                         </div>
                     </div>
