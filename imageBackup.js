@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 import { getUploadAccount } from './cloudinaryConfig.js';
+import * as chototMysql from './db/chototMysql.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -317,75 +318,63 @@ export async function backupAdImages(ad) {
     };
 }
 
-// Batch backup ads from file (for manual batch processing)
-export async function batchBackupAdsFromFile(filePath) {
+/**
+ * Batch backup personal ads that have media but no imgs_bak yet (MySQL source).
+ */
+export async function batchBackupAdsFromMysql() {
     try {
-        console.log(`\n📦 Starting batch backup: ${filePath}`);
-        
-        if (!fs.existsSync(filePath)) {
-            console.error('❌ File not found');
+        if (!chototMysql.isEnabled()) {
+            console.error('❌ MySQL not enabled');
             return;
         }
-        
-        const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        const ads = Array.isArray(data) ? data : [];
-        
-        console.log(`📊 Total ads: ${ads.length}`);
-        
-        // Filter personal ads without backup
-        const adsToBackup = ads.filter(ad => 
-            ad.company_ad !== true && 
-            (!ad.imgs_bak || ad.imgs_bak.length === 0) &&
-            ((ad.images && ad.images.length > 0) || (ad.videos && ad.videos.length > 0))
+
+        console.log('\n📦 Starting MySQL batch backup');
+        const ads = await chototMysql.getAllListingPayloadsForBatch();
+        console.log(`📊 Personal listings in DB: ${ads.length}`);
+
+        const adsToBackup = ads.filter(
+            (ad) =>
+                ad.company_ad !== true &&
+                (!ad.imgs_bak || ad.imgs_bak.length === 0) &&
+                ((ad.images && ad.images.length > 0) || (ad.videos && ad.videos.length > 0))
         );
-        
+
         console.log(`📋 To backup: ${adsToBackup.length}`);
-        
+
         let processedCount = 0;
         let successCount = 0;
-        
+
         for (const ad of adsToBackup) {
             processedCount++;
             console.log(`\n[${processedCount}/${adsToBackup.length}] Ad: ${ad.ad_id}`);
-            
+
             const result = await backupAdImages(ad);
-            
+
             if (result.success) {
-                // Save array of URLs
-                ad.imgs_bak = result.results;  // ["url1", "url2", ...]
+                ad.imgs_bak = result.results;
                 successCount++;
+                await chototMysql.saveListingPayload(ad);
+            } else if (result.results && result.results.length > 0) {
+                ad.imgs_bak = result.results;
+                await chototMysql.saveListingPayload(ad);
             }
-            
-            // Save progress every 10 ads
+
             if (processedCount % 10 === 0) {
-                fs.writeFileSync(filePath, JSON.stringify(ads), 'utf-8');
-                console.log(`💾 Saved: ${processedCount}/${adsToBackup.length}`);
+                console.log(`💾 Progress: ${processedCount}/${adsToBackup.length}`);
             }
         }
-        
-        // Final save (minified)
-        fs.writeFileSync(filePath, JSON.stringify(ads), 'utf-8');
-        
-        console.log(`\n✅ Completed!`);
-        console.log(`   Processed: ${processedCount}`);
-        console.log(`   Success: ${successCount}`);
-        console.log(`   Failed: ${processedCount - successCount}`);
-        
+
+        console.log(`\n✅ MySQL batch completed. Success: ${successCount}, processed: ${processedCount}`);
     } catch (error) {
-        console.error('❌ Error:', error);
+        console.error('❌ MySQL batch error:', error);
     }
 }
 
 // CLI
 if (import.meta.url === `file://${process.argv[1]}`) {
-    const fileArg = process.argv[2];
-    
-    if (!fileArg) {
-        console.log('Usage: node imageBackup.js <path-to-ads-json>');
-        console.log('Example: node imageBackup.js public-chotot/data/ads-13096.json');
+    if (!chototMysql.isEnabled()) {
+        console.error('❌ MySQL must be enabled. JSON batch mode has been removed.');
         process.exit(1);
     }
-    
-    const filePath = path.resolve(process.cwd(), fileArg);
-    await batchBackupAdsFromFile(filePath);
+    await batchBackupAdsFromMysql();
 }

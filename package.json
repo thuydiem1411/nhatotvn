@@ -5,15 +5,27 @@
   "scripts": {
     "start": "node server-chotot.js",
     "start:chotot": "node server-chotot.js",
+    "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "node server-chotot.js",
+    "dev:client": "vite --config vite.config.mts",
     "fetch:chotot": "node fetchChotot.js",
     "backup": "node imageBackup.js",
-    "backup:all": "node batchBackupAll.js"
+    "backup:all": "node batchBackupAll.js",
+    "import:chotot-mysql": "node scripts/importChototJsonToMysql.js",
+    "client:dev": "vite --config vite.config.mts",
+    "client:build": "vite build --config vite.config.mts",
+    "client:preview": "vite preview --config vite.config.mts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@fancyapps/ui": "^5.0.36",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "hls.js": "^1.5.17",
+    "leaflet": "^1.9.4",
     "axios": "^1.7.9",
     "cheerio": "^1.0.0",
     "dotenv": "^17.3.1",
@@ -21,6 +33,7 @@
     "express": "^4.21.2",
     "fs": "^0.0.1-security",
     "fs-extra": "^11.3.0",
+    "mysql2": "^3.14.0",
     "multer": "^2.0.2",
     "node-cron": "^3.0.3",
     "path": "^0.12.7",
@@ -28,6 +41,9 @@
   },
   "type": "module",
   "devDependencies": {
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.1.9",
+    "@vitejs/plugin-react-swc": "^3.7.0",
+    "concurrently": "^9.1.2",
+    "vite": "^6.0.3"
   }
 }

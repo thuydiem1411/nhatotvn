@@ -1,14 +1,13 @@
 import 'dotenv/config';
 import express from "express";
 import path from "path";
-import fs from "fs";
 import axios from "axios";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
-import multer from "multer";
 import fetchChotot from "./fetchChotot.js";
 import cron from "node-cron";
-import { backupAdImages, batchBackupAdsFromFile } from "./imageBackup.js";
+import { backupAdImages, batchBackupAdsFromMysql } from "./imageBackup.js";
+import * as chototMysql from "./db/chototMysql.js";
 import { cloudinaryAccounts } from "./cloudinaryConfig.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,85 +15,22 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.static("public-chotot"));
 
-// Định nghĩa dataDir ở scope global
-const dataDir = path.join(__dirname, "public-chotot/data");
+if (!chototMysql.isEnabled()) {
+    throw new Error("MySQL must be enabled. JSON runtime mode has been removed.");
+}
 
-// Cấu hình multer cho upload file
-const upload = multer({ 
-    dest: 'uploads/',
-    limits: {
-        fileSize: 100 * 1024 * 10240, // 100MB
-        files: 1
-    }
-});
-
-app.get("/upload", (req, res) => {
-    res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Chợ Tốt Server</title>
-            <meta charset="UTF-8">
-            <style>
-                body { font-family: Arial, sans-serif; margin: 40px; }
-                .container { max-width: 800px; margin: 0 auto; }
-                .section { margin: 30px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
-                .btn { padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; display: inline-block; margin: 5px; }
-                .btn:hover { background: #0056b3; }
-                .form-group { margin: 15px 0; }
-                input[type="file"] { margin: 10px 0; }
-                .api-section { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; }
-                code { background: #e9ecef; padding: 2px 5px; border-radius: 3px; }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>🏠 Chợ Tốt Server</h1>
-                
-                <div class="section">
-                    <h2>📁 Upload/Download Ads Data</h2>
-                    
-                    <h3>Upload ads.json</h3>
-                    <form action="/upload-ads" method="post" enctype="multipart/form-data">
-                        <div class="form-group">
-                            <input type="file" name="adsFile" accept="application/json" required />
-                        </div>
-                        <button type="submit" class="btn">Upload ads.json</button>
-                    </form>
-                    
-                    <h3>Download ads.json</h3>
-                    <a href="/download-ads" class="btn">Download ads.json</a>
-                </div>
-                
-                <div class="section">
-                    <h2>📞 Phone API</h2>
-                    <div class="api-section">
-                        <h4>Lấy số điện thoại từ list_id:</h4>
-                        <code>GET /api/demo-phone?h=&lt;list_id&gt;&env=production&auth=0</code>
-                        <br><br>
-                        <strong>Ví dụ:</strong>
-                        <br>
-                        <code>GET /api/demo-phone?h=127122198&env=production&auth=0</code>
-                    </div>
-                </div>
-                
-                <div class="section">
-                    <h2>📊 Sample Data</h2>
-                    <a href="/api/sample-ad" class="btn">Xem ad mẫu</a>
-                </div>
-            </div>
-        </body>
-        </html>
-    `);
-});
+const CATEGORY_NAMES = {
+    '1050': 'tro',
+    '1020': 'nha'
+};
 
 // fetchChotot();
 
-// Khi khởi động server: tải regions và wards theo area, lưu vào public-chotot/data/regions.json
+// Khi khởi động server: đồng bộ region/area/ward vào MySQL để frontend filter dùng relationship.
 (async () => {
     try {
-        const regionsFile = path.join(dataDir, "regions.json");
-        if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+        await chototMysql.ensureSchema();
+        console.log("✅ Chotot MySQL schema ready");
 
         // 1) Load regions
         const regionsRes = await axios.get("https://gateway.chotot.com/v1/public/web-proxy-api/loadRegions", { timeout: 20000 });
@@ -102,11 +38,7 @@ app.get("/upload", (req, res) => {
 
         // 2) Lấy region 13000 (TPHCM)
         const region13000 = regions?.regionFollowId?.entities?.regions?.["13000"];
-        if (!region13000) {
-            console.warn("Không tìm thấy region 13000 trong dữ liệu regions.");
-            fs.writeFileSync(regionsFile, JSON.stringify(regions, null, 2), "utf-8");
-            return;
-        }
+        if (!region13000) throw new Error("Không tìm thấy region 13000 trong dữ liệu regions.");
 
         const areasObj = region13000.area || {};
         const areaIds = Object.keys(areasObj);
@@ -124,9 +56,9 @@ app.get("/upload", (req, res) => {
             await new Promise(r => setTimeout(r, 300));
         }
 
-        // 4) Lưu toàn bộ cấu trúc (có wards) xuống file dạng minified
-        fs.writeFileSync(regionsFile, JSON.stringify(regions), "utf-8");
-        console.log(`✅ Đã lưu regions + wards vào ${regionsFile}`);
+        // 4) Persist relationship region -> area -> ward vào MySQL
+        await chototMysql.upsertRegionTreeFromPayload(regions, 13000);
+        console.log(`✅ Region/area/ward đã đồng bộ vào MySQL`);
         
         // 5) Khởi tạo cron job crawl Chợ Tốt sau khi regions đã sẵn sàng
         const enableCronjob = process.env.ENABLE_CRONJOB === 'true';
@@ -141,295 +73,95 @@ app.get("/upload", (req, res) => {
     }
 })();
 
-// GET /api/sample-ad -> trả về ad đầu tiên từ sample-res.json (để tiện lấy list_id)
-app.get("/api/sample-ad", (req, res) => {
+// GET /api/regions — hierarchical relationship for filter UI (region -> areas -> wards)
+app.get("/api/regions", async (req, res) => {
     try {
-        const p = path.join(__dirname, "sample-res.json");
-        const data = JSON.parse(fs.readFileSync(p, "utf-8"));
-        const ad = Array.isArray(data?.ads) && data.ads.length ? data.ads[0] : null;
-        if (!ad) return res.status(404).json({ error: "Không có ads trong sample-res.json" });
-        res.json({ 
-            list_id: ad.list_id,
-            ad_id: ad.ad_id, 
-            account_id: ad.account_id, 
-            account_oid: ad.account_oid,
-            subject: ad.subject
-        });
+        const region = req.query.region ? Number(req.query.region) : 13000;
+        const tree = await chototMysql.getRegionTree(region);
+        return res.json(tree);
     } catch (err) {
         res.status(500).json({ error: err?.message || String(err) });
     }
 });
 
-// POST /upload-ads -> Upload file ads.json
-app.post("/upload-ads", upload.single('adsFile'), (req, res) => {
+// GET /api/ads/map — lightweight points for Leaflet (MySQL only; same filters as list V2)
+app.get("/api/ads/map", async (req, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({ error: "Không có file được upload" });
+        if (!chototMysql.isEnabled()) {
+            return res.status(503).json({ error: "Map API requires MySQL" });
         }
-
-        const tempPath = req.file.path;
-        const originalName = req.file.originalname.toLowerCase();
-
-        // Kiểm tra file có phải JSON không
-        if (!originalName.endsWith('.json')) {
-            fs.unlinkSync(tempPath);
-            return res.status(400).json({ error: "Chỉ chấp nhận file JSON" });
-        }
-
-        // Đọc và validate JSON
-        const fileContent = fs.readFileSync(tempPath, 'utf8');
-        let jsonData;
-        try {
-            jsonData = JSON.parse(fileContent);
-        } catch (parseError) {
-            fs.unlinkSync(tempPath);
-            return res.status(400).json({ error: "File không phải JSON hợp lệ: " + parseError.message });
-        }
-
-        // Kiểm tra cấu trúc JSON có phải ads không
-        if (!Array.isArray(jsonData) && !jsonData.ads) {
-            fs.unlinkSync(tempPath);
-            return res.status(400).json({ error: "File JSON không có cấu trúc ads hợp lệ" });
-        }
-
-        // Tạo thư mục data nếu chưa có
-        if (!fs.existsSync(dataDir)) {
-            fs.mkdirSync(dataDir, { recursive: true });
-        }
-
-        // Ghi file ads.json dạng minified
-        const targetPath = path.join(dataDir, "ads.json");
-        fs.writeFileSync(targetPath, JSON.stringify(jsonData), 'utf8');
-
-        // Xóa file tạm
-        fs.unlinkSync(tempPath);
-
-        const fileSize = (fileContent.length / (1024 * 1024)).toFixed(2);
-        const adsCount = Array.isArray(jsonData) ? jsonData.length : (jsonData.ads ? jsonData.ads.length : 0);
-
-        res.json({
-            success: true,
-            message: `Upload thành công! File ads.json - Kích thước: ${fileSize}MB - Số ads: ${adsCount}`,
-            fileSize: fileSize,
-            adsCount: adsCount
-        });
-
-    } catch (err) {
-        // Xóa file tạm nếu có lỗi
-        if (req.file && fs.existsSync(req.file.path)) {
-            fs.unlinkSync(req.file.path);
-        }
-        res.status(500).json({ error: "Lỗi upload: " + err.message });
-    }
-});
-
-// GET /download-ads -> Download file ads.json
-app.get("/download-ads", (req, res) => {
-    try {
-        const adsFilePath = path.join(dataDir, "ads.json");
-        
-        if (!fs.existsSync(adsFilePath)) {
-            return res.status(404).json({ error: "File ads.json không tồn tại" });
-        }
-
-        res.download(adsFilePath, "ads.json");
-    } catch (err) {
-        res.status(500).json({ error: "Lỗi download: " + err.message });
-    }
-});
-
-// GET /api/ads -> Stream data with category filter and backup/nobackup merge
-app.get("/api/ads", async (req, res) => {
-    try {
-        if (!fs.existsSync(dataDir)) {
-            return res.status(404).json({ error: "Thư mục data không tồn tại" });
-        }
-
-        // Parse query params
-        const category = req.query.category || 'all'; // 'all', '1050', '1020'
-        const onlyBackup = req.query.only_backup === 'true'; // true/false
-
-        // Category name mapping
-        const CATEGORY_NAMES = {
-            '1050': 'tro',
-            '1020': 'nha'
-        };
-
-        // Determine which files to read based on category
-        let filePatterns = [];
-        if (category === 'all') {
-            // All categories
-            filePatterns = ['*-tro', '*-nha'];
-        } else if (CATEGORY_NAMES[category]) {
-            // Specific category
-            filePatterns = [`*-${CATEGORY_NAMES[category]}`];
-        } else {
+        const filters = chototMysql.parseAdsFilterFromQuery(req.query);
+        if (filters.category !== "all" && !CATEGORY_NAMES[filters.category]) {
             return res.status(400).json({ error: "Invalid category parameter" });
         }
-
-        // Build file list
-        let filesToRead = [];
-        for (const pattern of filePatterns) {
-            const allFiles = fs.readdirSync(dataDir);
-            
-            // Get backup files (e.g., ads-13096-tro.json)
-            const backupFiles = allFiles.filter(file => {
-                const match = file.match(/^ads-\d+-(\w+)\.json$/);
-                return match && pattern.includes(match[1]);
-            });
-            
-            filesToRead.push(...backupFiles.map(f => ({ file: f, isBackup: true })));
-            
-            // If not only_backup, also include nobackup files
-            if (!onlyBackup) {
-                const nobackupFiles = allFiles.filter(file => {
-                    const match = file.match(/^ads-\d+-(\w+)-nobackup\.json$/);
-                    return match && pattern.includes(match[1]);
-                });
-                filesToRead.push(...nobackupFiles.map(f => ({ file: f, isBackup: false })));
-            }
-        }
-        
-        if (filesToRead.length === 0) {
-            return res.status(404).json({ error: "Không có file ads nào tồn tại" });
-        }
-
-        console.log(`📊 API /api/ads: category=${category}, only_backup=${onlyBackup}, files=${filesToRead.length}`);
-
-        // Set headers for streaming JSON array
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.setHeader('Transfer-Encoding', 'chunked');
-        
-        // Start JSON array
-        res.write('[');
-        
-        // Use Map for dedupe: backup files have priority over nobackup files
-        // Read backup files first, then nobackup files
-        const seenIds = new Map(); // ad_id -> ad object
-        let totalAds = 0;
-        let uniqueAds = 0;
-        let isFirstAd = true;
-
-        // Sort files: backup files first (priority), then nobackup files
-        filesToRead.sort((a, b) => {
-            if (a.isBackup && !b.isBackup) return -1;
-            if (!a.isBackup && b.isBackup) return 1;
-            return 0;
-        });
-
-        // Process each file sequentially
-        for (const { file, isBackup } of filesToRead) {
-            try {
-                const filePath = path.join(dataDir, file);
-                
-                // Read file using stream
-                await new Promise((resolve, reject) => {
-                    let buffer = '';
-                    const stream = fs.createReadStream(filePath, { encoding: 'utf-8', highWaterMark: 64 * 1024 });
-                    
-                    stream.on('data', (chunk) => {
-                        buffer += chunk;
-                    });
-                    
-                    stream.on('end', () => {
-                        try {
-                            const data = JSON.parse(buffer);
-                            
-                            if (Array.isArray(data)) {
-                                totalAds += data.length;
-                                
-                                // Process each ad
-                                for (const ad of data) {
-                                    if (ad.ad_id) {
-                                        // Dedupe logic: backup file priority
-                                        // If ad_id already exists from backup file, skip this one (from nobackup)
-                                        if (!seenIds.has(ad.ad_id)) {
-                                            seenIds.set(ad.ad_id, ad);
-                                            uniqueAds++;
-                                            
-                                            // Add comma separator for all ads except the first one
-                                            if (!isFirstAd) {
-                                                res.write(',');
-                                            }
-                                            isFirstAd = false;
-                                            
-                                            // Stream the ad as JSON
-                                            res.write(JSON.stringify(ad));
-                                        }
-                                    }
-                                }
-                            }
-                            resolve();
-                        } catch (parseErr) {
-                            console.error(`Lỗi parse JSON file ${file}:`, parseErr.message);
-                            resolve();
-                        }
-                    });
-                    
-                    stream.on('error', (err) => {
-                        console.error(`Lỗi đọc stream file ${file}:`, err.message);
-                        resolve();
-                    });
-                });
-                
-            } catch (err) {
-                console.error(`Lỗi xử lý file ${file}:`, err.message);
-            }
-        }
-
-        // Close JSON array
-        res.write(']');
-        res.end();
-
-        console.log(`📊 API /api/ads result: ${filesToRead.length} files, ${totalAds} total ads, ${uniqueAds} unique ads`);
-        
+        const data = await chototMysql.queryMapPointsV2(filters);
+        console.log(`📊 API /api/ads/map: items=${data.items?.length ?? 0}`);
+        return res.json(data);
     } catch (err) {
-        if (!res.headersSent) {
-            res.status(500).json({ error: "Lỗi đọc ads: " + err.message });
-        } else {
-            res.end();
+        res.status(500).json({ error: err?.message || String(err) });
+    }
+});
+
+// GET /api/ads/:adId — full assembled ad for modal/detail (MySQL only)
+app.get("/api/ads/:adId", async (req, res) => {
+    try {
+        const raw = req.params.adId;
+        if (!/^\d+$/.test(String(raw))) {
+            return res.status(400).json({ error: "Invalid ad_id" });
         }
+        if (!chototMysql.isEnabled()) {
+            return res.status(503).json({ error: "Detail API requires MySQL" });
+        }
+        const ad = await chototMysql.getListingByAdId(raw);
+        if (!ad) return res.status(404).json({ error: "Ad not found" });
+        return res.json(ad);
+    } catch (err) {
+        res.status(500).json({ error: err?.message || String(err) });
+    }
+});
+
+// GET /api/ads -> V2 { items, total?, offset, limit, has_more } (MySQL only)
+app.get("/api/ads", async (req, res) => {
+    try {
+        const category = req.query.category || 'all'; // 'all', '1050', '1020'
+        if (category !== 'all' && !CATEGORY_NAMES[category]) {
+            return res.status(400).json({ error: "Invalid category parameter" });
+        }
+        const filters = chototMysql.parseAdsFilterFromQuery(req.query);
+        const data = await chototMysql.queryAdsListV2(filters);
+        console.log(
+            `📊 API /api/ads v2: offset=${data.offset} limit=${data.limit} has_more=${data.has_more} total=${data.total ?? 'n/a'} items=${data.items.length}`
+        );
+        return res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: "Lỗi đọc ads: " + err.message });
     }
 });
 
 // POST /api/backup-images - Backup images for specific ad
 app.post("/api/backup-images", express.json(), async (req, res) => {
     try {
-        const { ad_id, file } = req.body;
-        
-        if (!ad_id || !file) {
-            return res.status(400).json({ error: "Missing ad_id or file parameter" });
+        const { ad_id } = req.body;
+
+        if (!ad_id) {
+            return res.status(400).json({ error: "Missing ad_id" });
         }
-        
-        const filePath = path.join(dataDir, file);
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ error: "File not found" });
-        }
-        
-        // Read ads
-        const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        const ads = Array.isArray(data) ? data : [];
-        const ad = ads.find(a => a.ad_id == ad_id);
-        
+
+        const ad = await chototMysql.getListingByAdId(ad_id);
         if (!ad) {
             return res.status(404).json({ error: "Ad not found" });
         }
-        
-        // Check if company ad
+
         if (ad.company_ad === true) {
             return res.status(400).json({ error: "Cannot backup company ads" });
         }
-        
-        // Backup images
+
         const result = await backupAdImages(ad);
-        
+
         if (result.success) {
-            // Update ad with array of backup URLs
-            ad.imgs_bak = result.results;  // ["url1", "url2", ...]
-            
-            // Save back to file (minified)
-            fs.writeFileSync(filePath, JSON.stringify(ads), 'utf-8');
-            
+            ad.imgs_bak = result.results;
+            await chototMysql.saveListingPayload(ad);
+
             return res.json({
                 success: true,
                 ad_id: ad.ad_id,
@@ -437,48 +169,128 @@ app.post("/api/backup-images", express.json(), async (req, res) => {
                 total: result.total,
                 imgs_bak: ad.imgs_bak
             });
-        } else {
-            return res.status(500).json({
-                success: false,
-                reason: result.reason
-            });
         }
-        
+
+        if (result.results && result.results.length > 0) {
+            ad.imgs_bak = result.results;
+            await chototMysql.saveListingPayload(ad);
+        }
+
+        return res.status(500).json({
+            success: false,
+            reason: result.reason
+        });
     } catch (error) {
         console.error('Backup error:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// POST /api/batch-backup - Batch backup all personal ads in a file
+// POST /api/batch-backup - Batch backup all personal ads from MySQL
 app.post("/api/batch-backup", express.json(), async (req, res) => {
     try {
-        const { file } = req.body;
-        
-        if (!file) {
-            return res.status(400).json({ error: "Missing file parameter" });
-        }
-        
-        const filePath = path.join(dataDir, file);
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ error: "File not found" });
-        }
-        
-        // Start backup in background
         res.json({
             success: true,
-            message: "Backup started in background",
-            file: file
+            message: "MySQL batch backup started in background",
+            source: "mysql"
         });
-        
-        // Run backup async
-        batchBackupAdsFromFile(filePath).catch(err => {
-            console.error('Background backup error:', err);
+
+        batchBackupAdsFromMysql().catch((err) => {
+            console.error('Background MySQL batch backup error:', err);
         });
-        
     } catch (error) {
         console.error('Batch backup error:', error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+// GET /api/sellers/:accountOid/phones — accumulated numbers for account_oid (plan chotot_json_to_sql)
+app.get("/api/sellers/:accountOid/phones", async (req, res) => {
+    try {
+        if (!chototMysql.isEnabled()) {
+            return res.status(503).json({ error: "MySQL not enabled" });
+        }
+        const accountOid = req.params.accountOid;
+        const phones = await chototMysql.getSellerPhones(accountOid);
+        res.json({ account_oid: accountOid, phones });
+    } catch (err) {
+        res.status(500).json({ error: err?.message || String(err) });
+    }
+});
+
+async function fetchPhoneByListId(listId, env = "production") {
+    try {
+        const e = encryptToE(listId, env).e;
+        const url = `https://gateway.chotot.com/v1/public/ad-listing/phone?e=${e}`;
+        const resp = await axios.get(url, { timeout: 20000 });
+        const phone = resp?.data?.phone;
+        return { phone: phone || null, hiddenExpired: false };
+    } catch (err) {
+        if (err?.status == 404 && err?.response?.data?.message?.includes(String(listId))) {
+            return { phone: null, hiddenExpired: true };
+        }
+        return { phone: null, hiddenExpired: false };
+    }
+}
+
+async function fetchListIdsByAccountOid(accountOid) {
+    const out = [];
+    let page = 1;
+    let totalPage = 1;
+    while (page <= totalPage) {
+        const url = `https://gateway.chotot.com/v1/public/theia/${accountOid}?limit=100&page=${page}`;
+        const resp = await axios.get(url, { timeout: 20000 });
+        const data = resp?.data || {};
+        const ads = Array.isArray(data.ads) ? data.ads : [];
+        for (const a of ads) {
+            const listId = Number(a?.info?.list_id ?? a?.list_id);
+            if (Number.isFinite(listId) && listId > 0) out.push(listId);
+        }
+        totalPage = Number(data?.paging?.totalPage || 1);
+        page += 1;
+    }
+    return [...new Set(out)];
+}
+
+// POST /api/sellers/:accountOid/phones/fetch
+// Fetch phones from Theia list_ids and persist into chotot_seller_phone.
+app.post("/api/sellers/:accountOid/phones/fetch", express.json(), async (req, res) => {
+    try {
+        const accountOid = req.params.accountOid;
+        if (!accountOid) return res.status(400).json({ error: "Missing accountOid" });
+        const skipSavedSource = true;
+
+        const listIds = await fetchListIdsByAccountOid(accountOid);
+        const knownSourceIds = skipSavedSource
+            ? new Set(await chototMysql.getSellerPhoneSourceAdIds(accountOid))
+            : new Set();
+
+        const insertEntries = [];
+        let hiddenCount = 0;
+        for (const listId of listIds) {
+            if (knownSourceIds.has(Number(listId))) continue;
+            const r = await fetchPhoneByListId(listId, "production");
+            if (r.hiddenExpired) {
+                hiddenCount += 1;
+            }
+            if (r.phone) {
+                insertEntries.push({ phone: r.phone, source_ad_id: listId });
+            }
+            await new Promise((rslv) => setTimeout(rslv, 120));
+        }
+
+        const inserted = await chototMysql.upsertSellerPhones(accountOid, insertEntries);
+        const phones = await chototMysql.getSellerPhones(accountOid);
+        return res.json({
+            account_oid: accountOid,
+            requested_list_ids: listIds.length,
+            hidden_expired_count: hiddenCount,
+            fetched_entries: insertEntries.length,
+            inserted,
+            phones
+        });
+    } catch (err) {
+        return res.status(500).json({ error: err?.message || String(err) });
     }
 });
 

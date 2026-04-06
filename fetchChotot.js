@@ -7,6 +7,7 @@ import cron from "node-cron";
 import crypto from "crypto";
 import { backupAdImages } from "./imageBackup.js";
 import { resetCloudinaryAccountsState } from "./cloudinaryConfig.js";
+import * as chototMysql from "./db/chototMysql.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +29,8 @@ const CATEGORY_DISPLAY_NAMES = {
 // true  -> BACKUP first, then CRAWL
 // false -> CRAWL first, then BACKUP (default)
 const BACKUP_FIRST = (process.env.BACKUP_FIRST ?? 'false').toLowerCase() === 'true';
+const PHONE_FALLBACK_THEIA =
+    (process.env.PHONE_FALLBACK_THEIA ?? 'true').toLowerCase() === 'true';
 
 // Thứ tự area cần crawl luân phiên
 const areaOrder = [
@@ -212,101 +215,76 @@ async function getPhoneNumber(listId) {
 
         if (response && response?.data && response?.data?.phone) {
             countGetPhoneFailed = 0;
-            return response.data.phone;
+            return { phone: response.data.phone, hiddenExpired: false, ok: true };
         }
-        return null;
+        return { phone: null, hiddenExpired: false, ok: false };
     } catch (err) {
         if (err.status == 429) {
             countGetPhoneFailed++;
         }
         if (err?.status == 404 && err?.response?.data?.message?.includes(listId)) {
-            return "Số bị ẩn do hết hạn";
+            return { phone: null, hiddenExpired: true, ok: false };
         }
         console.error(`❌ Lỗi lấy phone cho list_id ${listId}:`, err?.message || err);
-        return null;
+        return { phone: null, hiddenExpired: false, ok: false };
     }
 }
 
+async function fetchTheiaListIds(accountOid) {
+    const out = [];
+    let page = 1;
+    let totalPage = 1;
+    while (page <= totalPage) {
+        const url = `https://gateway.chotot.com/v1/public/theia/${accountOid}?limit=100&page=${page}`;
+        const resp = await axios.get(url, { timeout: 20000 });
+        const data = resp?.data || {};
+        const ads = Array.isArray(data.ads) ? data.ads : [];
+        for (const a of ads) {
+            const listId = Number(a?.info?.list_id ?? a?.list_id);
+            if (Number.isFinite(listId) && listId > 0) out.push(listId);
+        }
+        totalPage = Number(data?.paging?.totalPage || 1);
+        page += 1;
+        await new Promise((r) => setTimeout(r, 120));
+    }
+    return [...new Set(out)];
+}
+
+async function fetchPhonesByAccountOid(accountOid) {
+    if (!accountOid) return { phones: [], sourceListIds: [] };
+    const listIds = await fetchTheiaListIds(accountOid);
+    // Always skip list_ids already saved successfully as source_ad_id.
+    const ids = await chototMysql.getSellerPhoneSourceAdIds(accountOid);
+    const knownSource = new Set(ids.map((n) => Number(n)));
+    const entries = [];
+    for (const listId of listIds) {
+        if (knownSource.has(Number(listId))) continue;
+        const r = await getPhoneNumber(listId);
+        if (r?.phone) {
+            entries.push({ phone: r.phone, source_ad_id: listId });
+        }
+        await new Promise((res) => setTimeout(res, 160));
+    }
+    if (entries.length) {
+        await chototMysql.upsertSellerPhones(accountOid, entries);
+    }
+    return {
+        phones: entries.map((e) => e.phone),
+        sourceListIds: listIds
+    };
+}
+
 async function safeWriteFile(data, areaId, category) {
-    // CRITICAL: This function ONLY writes to BACKUP files
-    // Path format: ads-{areaId}-{tro|nha}.json
-    // NEVER writes to -nobackup files (those are read-only, created once by Python script)
-    const areaFile = getAreaFile(areaId, category); // e.g., ads-13096-tro.json
-    const tempFile = areaFile + '.tmp';
-    const backupFile = areaFile + '.backup';
-    
+    // This function is now MySQL-only for crawl persistence.
     try {
-        // Step 1: Write to temp file
-        fs.writeFileSync(tempFile, JSON.stringify(data), "utf-8");
-        
-        // Step 2: If original file exists, create backup copy
-        if (fs.existsSync(areaFile)) {
-            try {
-                fs.copyFileSync(areaFile, backupFile);
-            } catch (copyErr) {
-                console.error("⚠️  Không thể tạo backup, nhưng tiếp tục:", copyErr?.message);
-            }
-        }
-        
-        // Step 3: Rename temp to main (atomic operation on most systems)
-        fs.renameSync(tempFile, areaFile);
-        
-        // Step 4: Delete backup after successful rename
-        if (fs.existsSync(backupFile)) {
-            try {
-                fs.unlinkSync(backupFile);
-            } catch (unlinkErr) {
-                console.warn("⚠️  Không thể xóa backup file (sẽ xóa lần sau):", unlinkErr?.message);
-            }
-        }
-        
+        await chototMysql.upsertListingsForCrawl(
+            parseInt(String(areaId), 10),
+            parseInt(String(category), 10),
+            data
+        );
         return true;
-        
     } catch (err) {
-        console.error("❌ Lỗi ghi file:", err?.message || err);
-        
-        // Recovery: restore from backup if exists and original file is corrupted/missing
-        if (fs.existsSync(backupFile)) {
-            try {
-                // Check if original file is missing or corrupted
-                let needRestore = false;
-                if (!fs.existsSync(areaFile)) {
-                    needRestore = true;
-                    console.log("🔄 File gốc bị mất, đang restore từ backup...");
-                } else {
-                    // Try to parse original file to check if corrupted
-                    try {
-                        const content = fs.readFileSync(areaFile, "utf-8");
-                        JSON.parse(content);
-                    } catch (parseErr) {
-                        needRestore = true;
-                        console.log("🔄 File gốc bị corrupt, đang restore từ backup...");
-                    }
-                }
-                
-                if (needRestore) {
-                    fs.copyFileSync(backupFile, areaFile);
-                    console.log("✅ Đã restore từ backup thành công");
-                }
-            } catch (restoreErr) {
-                console.error("❌ Lỗi restore từ backup:", restoreErr?.message);
-            }
-        }
-        
-        // Cleanup temp files
-        try {
-            if (fs.existsSync(tempFile)) {
-                fs.unlinkSync(tempFile);
-            }
-            // Keep backup file if restore was attempted
-            // Otherwise delete it
-            if (fs.existsSync(backupFile) && fs.existsSync(areaFile)) {
-                fs.unlinkSync(backupFile);
-            }
-        } catch (cleanupErr) {
-            console.warn("⚠️  Lỗi cleanup files:", cleanupErr?.message);
-        }
-        
+        console.error("❌ Lỗi ghi MySQL:", err?.message || err);
         return false;
     }
 }
@@ -330,21 +308,22 @@ function mergeNonNull(oldObj, newObj) {
 let countGetPhoneFailed = 0;
 
 async function mergeByAdId(newAds, areaId, category) {
-    // CRITICAL: This function saves ALL crawled ads to BACKUP files
-    // It checks nobackup to track recovery, but NEVER writes to nobackup
-    // Đọc lại file ads-{areaId}-{category}.json mới nhất mỗi lần merge
+    // This function is now MySQL-only for existing crawl data.
     let existingAds = [];
     try {
-        const areaFile = getAreaFile(areaId, category); // Backup file only
-        if (fs.existsSync(areaFile)) {
-            const fileContent = fs.readFileSync(areaFile, "utf-8");
-            existingAds = JSON.parse(fileContent);
-            if (!Array.isArray(existingAds)) {
-                existingAds = [];
-            }
-        }
+        const ids = [
+            ...new Set(
+                newAds
+                    .map((a) => Number(a.ad_id))
+                    .filter((n) => Number.isFinite(n) && n > 0)
+            )
+        ];
+        existingAds = ids.length
+            ? await chototMysql.getListingsByAdIds(ids)
+            : [];
+        if (!Array.isArray(existingAds)) existingAds = [];
     } catch (err) {
-        console.error(`❌ Lỗi đọc file ads-${areaId}-${CATEGORY_NAMES[category]}.json:`, err?.message || err);
+        console.error(`❌ Lỗi đọc dữ liệu ads-${areaId}-${CATEGORY_NAMES[category]}:`, err?.message || err);
         existingAds = [];
     }
 
@@ -383,19 +362,47 @@ async function mergeByAdId(newAds, areaId, category) {
         const existing = map.get(ad.ad_id) || {};
         const merged = mergeNonNull(existing, ad);
 
+        // Crawl no longer has phone on this listing: clear listing.phone only (seller_phone history stays).
+        if (ad.phone == null || String(ad.phone).trim() === '') {
+            merged.phone = null;
+        }
+
         // Add category info to ad
         merged.category = category;
         merged.category_name = CATEGORY_DISPLAY_NAMES[category];
 
-        // // Kiểm tra và lấy phone nếu cần
-        // !merged.company_ad
+        // Kiểm tra và lấy phone nếu cần
         if (!merged.phone && !merged.company_ad && !merged.phone_hidden && merged.list_id && countGetPhoneFailed < 3) {
-            const phone = await getPhoneNumber(merged.list_id);
-            if (phone) {
-                merged.phone = phone;
-                console.log(`✅ Đã lấy phone: ${phone} cho ad_id ${merged.ad_id}, area ${areaId}, category ${category}`);
+            const phoneResult = await getPhoneNumber(merged.list_id);
+            if (phoneResult?.phone) {
+                merged.phone = phoneResult.phone;
+                console.log(
+                    `✅ Đã lấy phone: ${phoneResult.phone} cho ad_id ${merged.ad_id}, area ${areaId}, category ${category}`
+                );
             } else {
-                console.log(`❌ Không lấy được phone cho ad_id ${merged.ad_id}, area ${areaId}, category ${category}`);
+                const shouldFallback = PHONE_FALLBACK_THEIA && merged.account_oid;
+                if (shouldFallback) {
+                    try {
+                        const extra = await fetchPhonesByAccountOid(merged.account_oid);
+                        if (extra.phones.length > 0) {
+                            merged.phone = extra.phones[0];
+                            console.log(
+                                `✅ Fallback theia lấy được ${extra.phones.length} phone cho account_oid ${merged.account_oid}`
+                            );
+                        } else {
+                            console.log(
+                                `❌ Không lấy được phone (kể cả theia) cho ad_id ${merged.ad_id}, account_oid ${merged.account_oid}`
+                            );
+                        }
+                    } catch (e) {
+                        console.error(
+                            `❌ Lỗi fallback theia cho account_oid ${merged.account_oid}:`,
+                            e?.message || e
+                        );
+                    }
+                } else {
+                    console.log(`❌ Không lấy được phone cho ad_id ${merged.ad_id}, area ${areaId}, category ${category}`);
+                }
             }
             // Delay nhẹ giữa các request phone để tránh bị block
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -430,7 +437,7 @@ async function mergeByAdId(newAds, areaId, category) {
 }
 
 // Backup images for ads in a single area
-async function backupAdsInArea(adsNeedBackup, areaFile, adsData, areaId, category) {
+async function backupAdsInArea(adsNeedBackup, adsData, areaId, category) {
     let backedUpCount = 0;
     let consecutiveRateLimitFails = 0;
     const RATE_LIMIT_THRESHOLD = 3;
@@ -455,7 +462,7 @@ async function backupAdsInArea(adsNeedBackup, areaFile, adsData, areaId, categor
                 consecutiveRateLimitFails = 0;
                 
                 // Save after each ad to prevent data loss
-                fs.writeFileSync(areaFile, JSON.stringify(adsData), 'utf-8');
+                await chototMysql.saveListingPayload(ad);
             } else {
                 // Check if any media hit rate limit
                 const hasRateLimit = result.results?.some(r => r.s === 'rate_limit');
@@ -469,7 +476,7 @@ async function backupAdsInArea(adsNeedBackup, areaFile, adsData, areaId, categor
                 // Save results even if not all succeeded
                 if (result.results && result.results.length > 0) {
                     ad.imgs_bak = result.results;
-                    fs.writeFileSync(areaFile, JSON.stringify(adsData), 'utf-8');
+                    await chototMysql.saveListingPayload(ad);
                 }
             }
         } catch (err) {
@@ -525,7 +532,7 @@ async function crawlAllAreas() {
                 
                 // Save page 1 immediately
                 const merged1 = await mergeByAdId(allAds, currentArea, currentCategory);
-                if (safeWriteFile(merged1, currentArea, currentCategory)) {
+                if (await safeWriteFile(merged1, currentArea, currentCategory)) {
                     console.log(`💾 Page 1: ${firstPage.ads?.length || 0} ads, saved => ${merged1.length} total`);
                 }
                 
@@ -538,7 +545,7 @@ async function crawlAllAreas() {
                             
                             // Save after each page
                             const merged = await mergeByAdId(allAds, currentArea, currentCategory);
-                            if (safeWriteFile(merged, currentArea, currentCategory)) {
+                            if (await safeWriteFile(merged, currentArea, currentCategory)) {
                                 console.log(`💾 Page ${page}: ${pageData.ads.length} ads, saved => ${merged.length} total`);
                             }
                         }
@@ -569,13 +576,15 @@ async function backupAllAreas() {
             try {
                 console.log(`\n📸 Checking backup for area ${currentArea}, category ${currentCategory}...`);
                 
-                const areaFile = getAreaFile(currentArea, currentCategory);
-                if (!fs.existsSync(areaFile)) {
-                    console.log(`⏭️  File not found, skipping`);
+                let adsData;
+                adsData = await chototMysql.loadAssembledListingsByAreaCategory(
+                    parseInt(String(currentArea), 10),
+                    parseInt(String(currentCategory), 10)
+                );
+                if (!adsData.length) {
+                    console.log(`⏭️  No listings in DB for area ${currentArea}, category ${currentCategory}, skipping`);
                     continue;
                 }
-                
-                const adsData = JSON.parse(fs.readFileSync(areaFile, 'utf-8'));
                 
                 // Filter ads need backup using new needsBackup logic
                 const adsNeedBackup = adsData.filter(ad => needsBackup(ad));
@@ -587,7 +596,7 @@ async function backupAllAreas() {
                     // Small batch: backup now, continue to next area
                     if (adsNeedBackup.length > 0) {
                         console.log(`🔹 Small batch (< 10), backing up...`);
-                        await backupAdsInArea(adsNeedBackup, areaFile, adsData, currentArea, currentCategory);
+                        await backupAdsInArea(adsNeedBackup, adsData, currentArea, currentCategory);
                     } else {
                         console.log(`✓ No backup needed`);
                     }
@@ -595,7 +604,7 @@ async function backupAllAreas() {
                 } else {
                     // Large batch: backup now, then BREAK
                     console.log(`🔸 Large batch (>= 10), backing up then returning to crawl...`);
-                    await backupAdsInArea(adsNeedBackup, areaFile, adsData, currentArea, currentCategory);
+                    await backupAdsInArea(adsNeedBackup, adsData, currentArea, currentCategory);
                     
                     // BREAK out of backup phase, return to crawl
                     console.log('⏸️  BACKUP PHASE: Paused (will resume after next crawl)');
@@ -621,7 +630,11 @@ async function fetchAllPages() {
     try {
         // Reset account runtime flags so each run starts fresh.
         resetCloudinaryAccountsState();
+        if (!chototMysql.isEnabled()) {
+            throw new Error("MySQL must be enabled. JSON runtime mode has been removed.");
+        }
         ensureDataDir();
+        await chototMysql.ensureSchema();
         
         // Execute phases based on BACKUP_FIRST env
         if (BACKUP_FIRST) {

@@ -20,9 +20,18 @@ document.addEventListener("DOMContentLoaded", async function () {
     const clearFocusBtn = document.getElementById('clear-focus-btn');
 
     let allAds = [];
+    /** Map layer data: full ads (JSON mode) or lightweight points from GET /api/ads/map (MySQL v2). */
+    let mapAds = [];
     let displayedCount = 20;
     let isLoading = false;
     let searchTerm = '';
+    /** MySQL API returns { items, total, has_more } instead of a raw array. */
+    let useApiV2 = false;
+    let listTotal = 0;
+    let listNextOffset = 0;
+    let listHasMore = false;
+    const LIST_PAGE_SIZE = 40;
+    let priceSliderInited = false;
     let currentAd = null;
     let priceMin = 2000000;
     let priceMax = 4000000;
@@ -44,18 +53,91 @@ document.addEventListener("DOMContentLoaded", async function () {
         return `https://res.cloudinary.com/${cloudName}/image/upload/${bak}`;
     }
 
-    async function loadAds() {
+    function buildAdsApiParams(offset) {
+        const p = new URLSearchParams();
+        p.set('category', filterCategoryEl?.value || 'all');
+        p.set('only_backup', filterOnlyBackupImgEl?.checked ? 'true' : 'false');
+        const area = filterAreaEl?.value;
+        if (area) p.set('area_v2', area);
+        let wards = [];
+        if (window.$ && filterWardEl && typeof window.$.fn.select2 === 'function') {
+            wards = (window.$(filterWardEl).val() || []).filter(Boolean);
+        } else if (filterWardEl?.value) {
+            wards = [filterWardEl.value];
+        }
+        if (wards.length) p.set('wards', wards.join(','));
+        if (selectedPriceMin != null && selectedPriceMax != null) {
+            p.set('price_min', String(selectedPriceMin));
+            p.set('price_max', String(selectedPriceMax));
+        }
+        const cf = filterCompanyEl?.value || '';
+        if (cf === 'agent') p.set('company', 'agent');
+        else if (cf === 'personal') p.set('company', 'personal');
+        const q = searchTerm.trim();
+        if (q.length >= 2) p.set('q', q);
+        p.set('sort', sortEl?.value || 'newest');
+        p.set('limit', String(LIST_PAGE_SIZE));
+        p.set('offset', String(offset ?? 0));
+        return p;
+    }
+
+    async function loadMapPoints() {
+        if (!useApiV2) {
+            mapAds = allAds;
+            return;
+        }
         try {
-            const category = filterCategoryEl?.value || 'all';
-            const onlyBackup = filterOnlyBackupImgEl?.checked ? 'true' : 'false';
-            const res = await fetch(`/api/ads?category=${category}&only_backup=${onlyBackup}`);
-            allAds = await res.json();
+            const p = buildAdsApiParams(0);
+            p.delete('offset');
+            p.delete('limit');
+            const res = await fetch(`/api/ads/map?${p.toString()}`);
+            if (!res.ok) throw new Error(res.statusText);
+            const data = await res.json();
+            mapAds = data.items || [];
+        } catch (e) {
+            console.warn('Map points load failed:', e);
+            mapAds = [];
+        }
+    }
 
-            // Cập nhật tổng số
-            document.getElementById('total-count').textContent = allAds.length;
+    /**
+     * @param {boolean} append — next page (offset); false = reset from filters
+     */
+    async function loadAds(append = false) {
+        try {
+            const res = await fetch(`/api/ads?${buildAdsApiParams(append ? listNextOffset : 0).toString()}`);
+            const data = await res.json();
 
-            initPriceSlider();
-            initMainMap();
+            if (Array.isArray(data)) {
+                useApiV2 = false;
+                allAds = data;
+                mapAds = allAds;
+                listTotal = allAds.length;
+                listHasMore = false;
+                document.getElementById('total-count').textContent = String(allAds.length);
+            } else if (data && Array.isArray(data.items)) {
+                useApiV2 = true;
+                if (!append) {
+                    allAds = data.items;
+                    listTotal = data.total !== undefined && data.total !== null ? data.total : allAds.length;
+                    listNextOffset = data.items.length;
+                    listHasMore = Boolean(data.has_more);
+                    await loadMapPoints();
+                } else {
+                    allAds = [...allAds, ...data.items];
+                    listNextOffset += data.items.length;
+                    listHasMore = Boolean(data.has_more);
+                }
+                document.getElementById('total-count').textContent = String(listTotal);
+            } else {
+                throw new Error('Unexpected API shape');
+            }
+
+            if (!priceSliderInited) {
+                initPriceSlider();
+                priceSliderInited = true;
+            }
+            if (!mainMap) initMainMap();
             render();
         } catch (e) {
             console.error("Lỗi load ads:", e);
@@ -97,14 +179,21 @@ document.addEventListener("DOMContentLoaded", async function () {
                     window.$(filterWardEl).val(null).trigger('change');
                     window.$(filterWardEl).prop('disabled', !wards.length);
                 }
-                displayedCount = 20; // reset lazy
-                render();
+                displayedCount = 20;
+                if (useApiV2) {
+                    loadAds(false).catch((e) => console.warn('area reload', e));
+                } else {
+                    render();
+                }
             });
 
-            // On change ward -> filter
             filterWardEl.addEventListener('change', () => {
                 displayedCount = 20;
-                render();
+                if (useApiV2) {
+                    loadAds(false).catch((e) => console.warn('ward reload', e));
+                } else {
+                    render();
+                }
             });
         } catch (e) {
             console.error('Lỗi load regions:', e);
@@ -170,7 +259,11 @@ document.addEventListener("DOMContentLoaded", async function () {
             const onChangeCommit = () => {
                 clampAndSync();
                 displayedCount = 20;
-                render();
+                if (useApiV2) {
+                    loadAds(false).catch((e) => console.warn('price reload', e));
+                } else {
+                    render();
+                }
             };
             priceMinInput.addEventListener('change', onChangeCommit);
             priceMaxInput.addEventListener('change', onChangeCommit);
@@ -384,9 +477,13 @@ document.addEventListener("DOMContentLoaded", async function () {
             const groupsByLocation = new Map(); // key: "lat|lng" -> { lat, lng, ads: [] }
 
             filteredAds.forEach((ad) => {
-                if (!ad || !ad.location) return;
+                if (!ad) return;
+                const locStr =
+                    ad.location ||
+                    (ad.latitude != null && ad.longitude != null ? `${ad.latitude},${ad.longitude}` : '');
+                if (!locStr) return;
                 try {
-                    const [lat, lng] = String(ad.location).split(',').map(Number);
+                    const [lat, lng] = String(locStr).split(',').map(Number);
                     if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
 
                     // Filter by focus circle
@@ -524,67 +621,64 @@ document.addEventListener("DOMContentLoaded", async function () {
             return;
         }
 
-        // Filter theo search term
         let filteredAds = allAds;
 
-        // Filter theo Area/Ward
-        const selectedArea = filterAreaEl?.value || "";
-        // Hỗ trợ đa chọn phường (Select2)
-        let selectedWards = [];
-        if (window.$ && typeof window.$.fn.select2 === 'function') {
-            selectedWards = (window.$(filterWardEl).val() || []).filter(Boolean);
-        } else {
-            const val = filterWardEl?.value || "";
-            selectedWards = val ? [val] : [];
-        }
-        if (selectedArea) {
-            filteredAds = filteredAds.filter(ad => String(ad.area_v2 || ad.area || ad.area_id) === String(selectedArea));
-        }
-        if (selectedWards.length > 0) {
-            const wardSet = new Set(selectedWards.map(String));
-            filteredAds = filteredAds.filter(ad => wardSet.has(String(ad.ward || ad.ward_id)));
-        }
+        if (!useApiV2) {
+            // Filter theo Area/Ward
+            const selectedArea = filterAreaEl?.value || "";
+            let selectedWards = [];
+            if (window.$ && typeof window.$.fn.select2 === 'function') {
+                selectedWards = (window.$(filterWardEl).val() || []).filter(Boolean);
+            } else {
+                const val = filterWardEl?.value || "";
+                selectedWards = val ? [val] : [];
+            }
+            if (selectedArea) {
+                filteredAds = filteredAds.filter(ad => String(ad.area_v2 || ad.area || ad.area_id) === String(selectedArea));
+            }
+            if (selectedWards.length > 0) {
+                const wardSet = new Set(selectedWards.map(String));
+                filteredAds = filteredAds.filter(ad => wardSet.has(String(ad.ward || ad.ward_id)));
+            }
 
-        // Filter theo khoảng giá (min-max)
-        if (selectedPriceMin != null && selectedPriceMax != null) {
-            filteredAds = filteredAds.filter(ad => {
-                const p = Number(ad.price || 0);
-                if (isNaN(p)) return false;
-                return p >= selectedPriceMin && p <= selectedPriceMax;
-            });
-        }
+            if (selectedPriceMin != null && selectedPriceMax != null) {
+                filteredAds = filteredAds.filter(ad => {
+                    const p = Number(ad.price || 0);
+                    if (isNaN(p)) return false;
+                    return p >= selectedPriceMin && p <= selectedPriceMax;
+                });
+            }
 
-        // Filter theo company_ad (true = Môi giới, false/undefined = Cá nhân)
-        const companyFilter = filterCompanyEl?.value || "";
-        if (companyFilter === 'agent') {
-            filteredAds = filteredAds.filter(ad => ad.company_ad === true);
-        } else if (companyFilter === 'personal') {
-            filteredAds = filteredAds.filter(ad => ad.company_ad !== true);
-        }
+            const companyFilter = filterCompanyEl?.value || "";
+            if (companyFilter === 'agent') {
+                filteredAds = filteredAds.filter(ad => ad.company_ad === true);
+            } else if (companyFilter === 'personal') {
+                filteredAds = filteredAds.filter(ad => ad.company_ad !== true);
+            }
 
-        // Only ads with at least one successfully backed-up image (imgs_bak entry with s === 'ok')
-        if (filterOnlyBackupImgEl?.checked) {
-            filteredAds = filteredAds.filter(
-                (ad) => Array.isArray(ad.imgs_bak) && ad.imgs_bak.some((img) => img && img.s === "ok")
-            );
-        }
-
-        if (searchTerm.trim()) {
-            const searchLower = searchTerm.toLowerCase();
-            filteredAds = filteredAds.filter(ad => {
-                return (
-                    (ad.subject && ad.subject.toLowerCase().includes(searchLower)) ||
-                    (ad.area_name && ad.area_name.toLowerCase().includes(searchLower)) ||
-                    (ad.ward_name && ad.ward_name.toLowerCase().includes(searchLower)) ||
-                    (ad.street_name && ad.street_name.toLowerCase().includes(searchLower)) ||
-                    (ad.street_number && ad.street_number.toLowerCase().includes(searchLower)) ||
-                    (ad.price_string && ad.price_string.toLowerCase().includes(searchLower)) ||
-                    (ad.full_name && ad.full_name.toLowerCase().includes(searchLower)) ||
-                    (ad.account_name && ad.account_name.toLowerCase().includes(searchLower)) ||
-                    (ad.body && ad.body.toLowerCase().includes(searchLower)) ||
-                    (ad.price && ad.price.toString().includes(searchLower))
+            if (filterOnlyBackupImgEl?.checked) {
+                filteredAds = filteredAds.filter(
+                    (ad) => Array.isArray(ad.imgs_bak) && ad.imgs_bak.some((img) => img && img.s === "ok")
                 );
-            });
+            }
+
+            if (searchTerm.trim()) {
+                const searchLower = searchTerm.toLowerCase();
+                filteredAds = filteredAds.filter(ad => {
+                    return (
+                        (ad.subject && ad.subject.toLowerCase().includes(searchLower)) ||
+                        (ad.area_name && ad.area_name.toLowerCase().includes(searchLower)) ||
+                        (ad.ward_name && ad.ward_name.toLowerCase().includes(searchLower)) ||
+                        (ad.street_name && ad.street_name.toLowerCase().includes(searchLower)) ||
+                        (ad.street_number && ad.street_number.toLowerCase().includes(searchLower)) ||
+                        (ad.price_string && ad.price_string.toLowerCase().includes(searchLower)) ||
+                        (ad.full_name && ad.full_name.toLowerCase().includes(searchLower)) ||
+                        (ad.account_name && ad.account_name.toLowerCase().includes(searchLower)) ||
+                        (ad.body && ad.body.toLowerCase().includes(searchLower)) ||
+                        (ad.price && ad.price.toString().includes(searchLower))
+                    );
+                });
+            }
         }
 
         const sortVal = sortEl.value;
@@ -598,24 +692,24 @@ document.addEventListener("DOMContentLoaded", async function () {
             return 0;
         });
 
-        // Update total count (show ratio when search or backup-only filter narrows the list)
         const totalCountEl = document.getElementById("total-count");
-        const showRatio = searchTerm.trim() || filterOnlyBackupImgEl?.checked;
         if (totalCountEl) {
-            totalCountEl.textContent = showRatio
-                ? `${filteredAds.length}/${allAds.length}`
-                : String(filteredAds.length);
+            if (useApiV2) {
+                totalCountEl.textContent = String(listTotal);
+            } else {
+                const showRatio = searchTerm.trim() || filterOnlyBackupImgEl?.checked;
+                totalCountEl.textContent = showRatio
+                    ? `${filteredAds.length}/${allAds.length}`
+                    : String(filteredAds.length);
+            }
         }
 
-        // Cập nhật bản đồ với toàn bộ danh sách đã lọc
-        updateMapMarkers(filteredAds);
+        updateMapMarkers(useApiV2 ? mapAds : filteredAds);
 
-        // Chỉ hiển thị số lượng đã định
-        const displayAds = sorted.slice(0, displayedCount);
+        const displayAds = useApiV2 ? sorted : sorted.slice(0, displayedCount);
 
         listEl.innerHTML = displayAds.map(ad => {
-            // Reconstruct backup URL if available
-            const backupImg = ad.imgs_bak?.find(img => img.s === 'ok');
+            const backupImg = ad.thumb_backup || ad.imgs_bak?.find(img => img.s === 'ok');
             const backupUrl = backupImg ? reconstructCloudinaryUrl(backupImg.bak, backupImg.c) : '';
             
             return `
@@ -631,7 +725,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                         <div class="image-overlay">
                             <i class="mdi mdi-magnify"></i>
                         </div>
-                        ${ad.imgs_bak?.some(img => img.s === 'ok') ? '<span class="backup-badge"><i class="mdi mdi-cloud-check"></i></span>' : ''}
+                        ${(ad.has_img_backup_ok || ad.imgs_bak?.some(img => img.s === 'ok')) ? '<span class="backup-badge"><i class="mdi mdi-cloud-check"></i></span>' : ''}
                     </div>
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex justify-content-between align-items-start mb-1 flex-wrap gap-1">
@@ -671,12 +765,12 @@ document.addEventListener("DOMContentLoaded", async function () {
                         
                         <div class="mt-auto">
                             <small class="description-text">
-                                ${ad.body ? ad.body.substring(0, 60) + '...' : 'Không có mô tả'}
+                                ${ad.body_preview || (ad.body ? ad.body.substring(0, 60) + '...' : 'Không có mô tả')}
                             </small>
                         </div>
 
                         <div class="mt-2">
-                            <button class="btn btn-sm btn-outline-primary w-100 show-map-btn" data-ad-id="${ad.ad_id}" data-location="${ad.location || ''}">
+                            <button class="btn btn-sm btn-outline-primary w-100 show-map-btn" data-ad-id="${ad.ad_id}" data-location="${ad.location || (ad.latitude != null && ad.longitude != null ? `${ad.latitude},${ad.longitude}` : '')}">
                                 <i class="mdi mdi-map-marker"></i> Xem bản đồ
                             </button>
                             <div id="map-${ad.ad_id}" class="leaflet-map mt-2" style="height: 200px; width: 100%; border-radius: 4px; display: none;"></div>
@@ -688,13 +782,13 @@ document.addEventListener("DOMContentLoaded", async function () {
         }).join('') +
 
             // Thêm loading indicator nếu còn ads chưa hiển thị
-            (displayedCount < sorted.length ? `
+            ((useApiV2 ? listHasMore : displayedCount < sorted.length) ? `
             <div class="col-12 text-center mt-2">
                 <div class="spinner-border spinner-border-sm text-primary" role="status">
                     <span class="visually-hidden">Đang tải thêm...</span>
                 </div>
                 <div class="mt-1 text-muted small">
-                    Hiển thị ${displayedCount}/${sorted.length} tin đăng
+                    Hiển thị ${sorted.length}/${useApiV2 ? listTotal : sorted.length} tin đăng
                 </div>
             </div>
         ` : '');
@@ -761,10 +855,19 @@ document.addEventListener("DOMContentLoaded", async function () {
         });
     }
 
-    // Hàm load thêm ads
-    function loadMore() {
-        if (isLoading || displayedCount >= allAds.length) return;
-
+    async function loadMore() {
+        if (isLoading) return;
+        if (useApiV2) {
+            if (!listHasMore) return;
+            isLoading = true;
+            try {
+                await loadAds(true);
+            } finally {
+                isLoading = false;
+            }
+            return;
+        }
+        if (displayedCount >= allAds.length) return;
         isLoading = true;
         displayedCount += 20;
         render();
@@ -788,7 +891,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     // Lazy load khi cuộn
     const handleScroll = debounce(() => {
         if (isBottomOfPage()) {
-            loadMore();
+            loadMore().catch((e) => console.warn('loadMore', e));
         }
     }, 200);
 
@@ -798,8 +901,12 @@ document.addEventListener("DOMContentLoaded", async function () {
     const debouncedSearch = debounce((value) => {
         searchTerm = value;
         displayedCount = 20;
-        render();
-    }, 300);
+        if (useApiV2) {
+            loadAds(false).catch((e) => console.warn('search reload', e));
+        } else {
+            render();
+        }
+    }, 400);
 
     // Event listeners
     searchEl.addEventListener('input', (e) => {
@@ -808,30 +915,43 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     sortEl.addEventListener('change', () => {
         displayedCount = 20;
-        render();
+        if (useApiV2) {
+            loadAds(false).catch((e) => console.warn('sort reload', e));
+        } else {
+            render();
+        }
     });
 
-    // Category filter - reload ads when changed
     if (filterCategoryEl) {
         filterCategoryEl.addEventListener('change', async () => {
             displayedCount = 20;
-            await loadAds(); // Reload ads from API with new category filter
+            await loadAds(false);
         });
     }
 
-    // Only backup filter - reload ads when changed
     if (filterOnlyBackupImgEl) {
         filterOnlyBackupImgEl.addEventListener("change", async () => {
             displayedCount = 20;
-            await loadAds(); // Reload ads from API with new only_backup filter
+            await loadAds(false);
         });
     }
 
-    // Hàm mở modal detail
-    window.openDetailModal = function (adId) {
-        currentAd = allAds.find(ad => ad.ad_id == adId);
-        if (!currentAd) return;
+    window.openDetailModal = async function (adId) {
+        if (useApiV2) {
+            try {
+                const r = await fetch(`/api/ads/${adId}`);
+                if (!r.ok) return;
+                currentAd = await r.json();
+            } catch (e) {
+                console.warn('Detail fetch failed', e);
+                return;
+            }
+        } else {
+            currentAd = allAds.find(ad => ad.ad_id == adId);
+            if (!currentAd) return;
+        }
 
+        console.log(currentAd);
         const images = currentAd.images || [];
         const hasImages = images.length > 0;
         let carouselHtml = '';
@@ -904,10 +1024,16 @@ document.addEventListener("DOMContentLoaded", async function () {
                     <div class="detail-section">
                         <h6><i class="mdi mdi-account"></i> Người đăng</h6>
                         <div class="info-grid">
-                            <a class="info-item" href="https://www.chotot.com/user/${currentAd.account_oid}" target="_blank">
+                            <div class="info-item">
                                 <i class="mdi mdi-account-circle"></i>
-                                <span>${currentAd.full_name || currentAd.account_name || 'N/A'}</span>
-                            </a>
+                                <a href="https://www.chotot.com/user/${currentAd.account_oid}" target="_blank">
+                                    <span>${currentAd.full_name || currentAd.account_name || 'N/A'}</span>
+                                </a>
+                                <a href="https://chat.chotot.com/chatroom/join/${btoa(currentAd.account_id + '|' + currentAd.list_id )}" target="_blank">
+                                    <i class="mdi mdi-message"></i>
+                                    <span>Chat</span>
+                                </a>
+                            </div>
                             <div class="info-item">
                                 <i class="mdi mdi-phone"></i>
                                 <span><a href="tel:${currentAd.phone || 'N/A'}">${currentAd.phone || 'N/A'}</a></span>
@@ -1001,10 +1127,13 @@ document.addEventListener("DOMContentLoaded", async function () {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
-    // Event: company filter
     filterCompanyEl.addEventListener('change', () => {
         displayedCount = 20;
-        render();
+        if (useApiV2) {
+            loadAds(false).catch((e) => console.warn('company reload', e));
+        } else {
+            render();
+        }
     });
 
     await Promise.all([loadRegions(), loadAds()]);
