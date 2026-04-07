@@ -423,6 +423,31 @@ async function migrateDropListingHasImgBackupOkColumn(conn) {
     }
 }
 
+async function ensureAlertRuleTable(conn) {
+    await conn.query(`
+    CREATE TABLE IF NOT EXISTS chotot_alert_rule (
+      id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      enabled TINYINT(1) NOT NULL DEFAULT 1,
+      areas_json JSON NULL,
+      wards_json JSON NULL,
+      categories_json JSON NULL,
+      price_min BIGINT NULL,
+      price_max BIGINT NULL,
+      company_mode VARCHAR(16) NOT NULL DEFAULT 'all',
+      keyword VARCHAR(255) NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+    if (await columnExists(conn, 'chotot_alert_rule', 'cooldown_minutes')) {
+        await conn.query('ALTER TABLE chotot_alert_rule DROP COLUMN cooldown_minutes');
+    }
+    if (await columnExists(conn, 'chotot_alert_rule', 'last_sent_at')) {
+        await conn.query('ALTER TABLE chotot_alert_rule DROP COLUMN last_sent_at');
+    }
+}
+
 async function migrateListingDedupSellerProfile(conn) {
     if (!(await columnExists(conn, 'chotot_listing', 'full_name'))) return;
 
@@ -463,9 +488,129 @@ export async function ensureSchema() {
         await migrateBackupTable(conn);
         await migrateListItemTable(conn);
         await migrateDropListingHasImgBackupOkColumn(conn);
+        await ensureAlertRuleTable(conn);
     } finally {
         conn.release();
     }
+}
+
+function parseJsonList(raw) {
+    if (raw == null || raw === '') return [];
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
+}
+
+function normalizeRulePayload(input) {
+    const areas = parseJsonList(input?.areas_json ?? input?.areas)
+        .map((x) => Number(x))
+        .filter((n) => Number.isFinite(n));
+    const wards = parseJsonList(input?.wards_json ?? input?.wards)
+        .map((x) => Number(x))
+        .filter((n) => Number.isFinite(n));
+    const categories = parseJsonList(input?.categories_json ?? input?.categories)
+        .map((x) => String(x))
+        .filter((s) => s === '1050' || s === '1020');
+    const mode = String(input?.company_mode || 'all');
+    return {
+        name: String(input?.name || '').trim() || 'Alert rule',
+        enabled: input?.enabled === false || input?.enabled === 0 ? 0 : 1,
+        areas_json: JSON.stringify([...new Set(areas)]),
+        wards_json: JSON.stringify([...new Set(wards)]),
+        categories_json: JSON.stringify([...new Set(categories)]),
+        price_min: input?.price_min != null && input?.price_min !== '' ? Number(input.price_min) : null,
+        price_max: input?.price_max != null && input?.price_max !== '' ? Number(input.price_max) : null,
+        company_mode: mode === 'agent' || mode === 'personal' ? mode : 'all',
+        keyword: input?.keyword != null ? String(input.keyword).trim() : null
+    };
+}
+
+function mapAlertRuleRow(row) {
+    return {
+        id: Number(row.id),
+        name: row.name,
+        enabled: row.enabled === 1,
+        areas: parseJsonList(row.areas_json).map((x) => Number(x)).filter((n) => Number.isFinite(n)),
+        wards: parseJsonList(row.wards_json).map((x) => Number(x)).filter((n) => Number.isFinite(n)),
+        categories: parseJsonList(row.categories_json).map((x) => String(x)),
+        price_min: row.price_min != null ? Number(row.price_min) : null,
+        price_max: row.price_max != null ? Number(row.price_max) : null,
+        company_mode: row.company_mode || 'all',
+        keyword: row.keyword || ''
+    };
+}
+
+export async function listAlertRules() {
+    const p = getPool();
+    if (!p) return [];
+    const [rows] = await p.query('SELECT * FROM chotot_alert_rule ORDER BY id DESC');
+    return rows.map(mapAlertRuleRow);
+}
+
+export async function getEnabledAlertRules() {
+    const p = getPool();
+    if (!p) return [];
+    const [rows] = await p.query('SELECT * FROM chotot_alert_rule WHERE enabled = 1 ORDER BY id DESC');
+    return rows.map(mapAlertRuleRow);
+}
+
+export async function createAlertRule(input) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const n = normalizeRulePayload(input);
+    const [r] = await p.execute(
+        `INSERT INTO chotot_alert_rule
+      (name, enabled, areas_json, wards_json, categories_json, price_min, price_max, company_mode, keyword)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            n.name,
+            n.enabled,
+            n.areas_json,
+            n.wards_json,
+            n.categories_json,
+            n.price_min,
+            n.price_max,
+            n.company_mode,
+            n.keyword || null
+        ]
+    );
+    return Number(r.insertId);
+}
+
+export async function updateAlertRule(id, input) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const n = normalizeRulePayload(input);
+    await p.execute(
+        `UPDATE chotot_alert_rule
+     SET name = ?, enabled = ?, areas_json = ?, wards_json = ?, categories_json = ?, price_min = ?, price_max = ?, company_mode = ?, keyword = ?
+     WHERE id = ?`,
+        [
+            n.name,
+            n.enabled,
+            n.areas_json,
+            n.wards_json,
+            n.categories_json,
+            n.price_min,
+            n.price_max,
+            n.company_mode,
+            n.keyword || null,
+            Number(id)
+        ]
+    );
+}
+
+export async function deleteAlertRule(id) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    await p.execute('DELETE FROM chotot_alert_rule WHERE id = ?', [Number(id)]);
 }
 
 /** list_kind values = JSON array keys (plan). */

@@ -31,6 +31,7 @@ const CATEGORY_DISPLAY_NAMES = {
 const BACKUP_FIRST = (process.env.BACKUP_FIRST ?? 'false').toLowerCase() === 'true';
 const PHONE_FALLBACK_THEIA =
     (process.env.PHONE_FALLBACK_THEIA ?? 'true').toLowerCase() === 'true';
+const PUSHMORE_WEBHOOK_URL = process.env.PUSHMORE_WEBHOOK_URL || '';
 
 // Thứ tự area cần crawl luân phiên
 const areaOrder = [
@@ -275,7 +276,60 @@ function mergeNonNull(oldObj, newObj) {
 
 let countGetPhoneFailed = 0;
 
-async function mergeByAdId(newAds, areaId, category) {
+function ruleMatchesAd(rule, ad, areaId, category) {
+    const adArea = Number(ad?.area_v2 ?? areaId);
+    const adWard = Number(ad?.ward);
+    const adCategory = String(ad?.category ?? category ?? '');
+    const adPrice = ad?.price != null ? Number(ad.price) : null;
+    const adCompany = ad?.company_ad === true;
+    const haystack = `${ad?.subject || ''}\n${ad?.body || ''}`.toLowerCase();
+
+    if (Array.isArray(rule?.areas) && rule.areas.length > 0 && !rule.areas.includes(adArea)) return false;
+    if (Array.isArray(rule?.wards) && rule.wards.length > 0 && !rule.wards.includes(adWard)) return false;
+    if (Array.isArray(rule?.categories) && rule.categories.length > 0 && !rule.categories.includes(adCategory)) return false;
+    if (rule?.price_min != null && Number.isFinite(Number(rule.price_min)) && !(adPrice != null && adPrice >= Number(rule.price_min))) return false;
+    if (rule?.price_max != null && Number.isFinite(Number(rule.price_max)) && !(adPrice != null && adPrice <= Number(rule.price_max))) return false;
+    if (rule?.company_mode === 'personal' && adCompany) return false;
+    if (rule?.company_mode === 'agent' && !adCompany) return false;
+    if (rule?.keyword && !haystack.includes(String(rule.keyword).toLowerCase())) return false;
+    return true;
+}
+
+async function sendPushmoreAlert(message) {
+    if (!PUSHMORE_WEBHOOK_URL) return false;
+    try {
+        await axios.post(PUSHMORE_WEBHOOK_URL, String(message), {
+            headers: { "Content-Type": "text/plain; charset=utf-8" },
+            timeout: 15000
+        });
+        return true;
+    } catch (err) {
+        console.error("❌ Pushmore alert failed:", err?.message || err);
+        return false;
+    }
+}
+
+async function pushAreaAlertsOnce(newAds, areaId, category) {
+    if (!newAds.length) return;
+    const rules = await chototMysql.getEnabledAlertRules();
+    if (!rules.length) return;
+    for (const rule of rules) {
+        const matched = newAds.filter((ad) => ruleMatchesAd(rule, ad, areaId, category));
+        if (!matched.length) continue;
+        const top = matched.slice(0, 20);
+        const lines = top.map((ad) => {
+            const url = `https://tim-tro.nport.link/?ad_id=${encodeURIComponent(String(ad.ad_id || ""))}`;
+            return `#${ad.ad_id} | ${ad.price_string || ad.price || "N/A"} | ${ad.subject || ""}\n${url}`;
+        });
+        const msg =
+            `[ALERT] ${rule.name}\n` +
+            `area=${areaId} category=${category} matched=${matched.length}\n` +
+            `${lines.join("\n")}`;
+        await sendPushmoreAlert(msg);
+    }
+}
+
+async function mergeByAdId(newAds, areaId, category, freshAdsCollector = null) {
     // This function is now MySQL-only for existing crawl data.
     let existingAds = [];
     try {
@@ -302,6 +356,11 @@ async function mergeByAdId(newAds, areaId, category) {
         cleanAdData(ad);
 
         const existing = map.get(ad.ad_id) || {};
+        if (!existing?.ad_id) {
+            if (Array.isArray(freshAdsCollector)) {
+                freshAdsCollector.push(ad);
+            }
+        }
         const merged = mergeNonNull(existing, ad);
 
         // Crawl no longer has phone on this listing: clear listing.phone only (seller_phone history stays).
@@ -465,6 +524,7 @@ async function crawlAllAreas() {
         for (const currentCategory of CATEGORIES) {
             try {
                 console.log(`\n📦 Crawling area ${currentArea}, category ${currentCategory} (${CATEGORY_DISPLAY_NAMES[currentCategory]})...`);
+                const freshAdsForArea = [];
                 
                 // Fetch first page to get total
                 const firstPage = await fetchPage(1, currentCategory);
@@ -477,7 +537,7 @@ async function crawlAllAreas() {
                 let allAds = [...(firstPage.ads || [])];
                 
                 // Save page 1 immediately
-                const merged1 = await mergeByAdId(allAds, currentArea, currentCategory);
+                const merged1 = await mergeByAdId(allAds, currentArea, currentCategory, freshAdsForArea);
                 if (await safeWriteFile(merged1, currentArea, currentCategory)) {
                     console.log(`💾 Page 1: ${firstPage.ads?.length || 0} ads, saved => ${merged1.length} total`);
                 }
@@ -490,7 +550,7 @@ async function crawlAllAreas() {
                             allAds = [...allAds, ...pageData.ads];
                             
                             // Save after each page
-                            const merged = await mergeByAdId(allAds, currentArea, currentCategory);
+                            const merged = await mergeByAdId(allAds, currentArea, currentCategory, freshAdsForArea);
                             if (await safeWriteFile(merged, currentArea, currentCategory)) {
                                 console.log(`💾 Page ${page}: ${pageData.ads.length} ads, saved => ${merged.length} total`);
                             }
@@ -502,6 +562,11 @@ async function crawlAllAreas() {
                     }
                 }
                 
+                try {
+                    await pushAreaAlertsOnce(freshAdsForArea, currentArea, currentCategory);
+                } catch (err) {
+                    console.error("❌ Area alert push failed:", err?.message || err);
+                }
                 console.log(`✅ Crawled ${allAds.length} ads for area ${currentArea}, category ${currentCategory}`);
                 
             } catch (categoryErr) {

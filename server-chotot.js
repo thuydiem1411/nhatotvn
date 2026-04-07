@@ -330,6 +330,42 @@ app.post("/api/sellers/:accountOid/phones/fetch", express.json(), async (req, re
     }
 });
 
+app.get("/api/alert-rules", async (_req, res) => {
+    try {
+        const items = await chototMysql.listAlertRules();
+        return res.json({ items });
+    } catch (err) {
+        return res.status(500).json({ error: err?.message || String(err) });
+    }
+});
+
+app.post("/api/alert-rules", express.json(), async (req, res) => {
+    try {
+        const id = await chototMysql.createAlertRule(req.body || {});
+        return res.json({ id });
+    } catch (err) {
+        return res.status(500).json({ error: err?.message || String(err) });
+    }
+});
+
+app.put("/api/alert-rules/:id", express.json(), async (req, res) => {
+    try {
+        await chototMysql.updateAlertRule(req.params.id, req.body || {});
+        return res.json({ ok: true });
+    } catch (err) {
+        return res.status(500).json({ error: err?.message || String(err) });
+    }
+});
+
+app.delete("/api/alert-rules/:id", async (req, res) => {
+    try {
+        await chototMysql.deleteAlertRule(req.params.id);
+        return res.json({ ok: true });
+    } catch (err) {
+        return res.status(500).json({ error: err?.message || String(err) });
+    }
+});
+
 // GET /api/cloudinary-status - Check Cloudinary accounts status
 app.get("/api/cloudinary-status", (req, res) => {
     res.json({
@@ -554,6 +590,10 @@ app.get("/admin/data-files/download/:name", (req, res) => {
 });
 
 app.get("/seller/:accountOid", (_req, res) => {
+    return res.sendFile(path.join(__dirname, "public-chotot", "index.html"));
+});
+
+app.get("/alerts", (_req, res) => {
     return res.sendFile(path.join(__dirname, "public-chotot", "index.html"));
 });
 

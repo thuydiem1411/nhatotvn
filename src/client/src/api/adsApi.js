@@ -71,3 +71,35 @@ export async function fetchSellerProfile(accountOid) {
   return res.json();
 }
 
+export async function fetchAlertRules() {
+  const res = await fetch(`${API_BASE}/alert-rules`);
+  if (!res.ok) throw new Error(`Failed to fetch alert rules (${res.status})`);
+  return res.json();
+}
+
+export async function createAlertRule(payload) {
+  const res = await fetch(`${API_BASE}/alert-rules`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload || {}),
+  });
+  if (!res.ok) throw new Error(`Failed to create alert rule (${res.status})`);
+  return res.json();
+}
+
+export async function updateAlertRule(id, payload) {
+  const res = await fetch(`${API_BASE}/alert-rules/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload || {}),
+  });
+  if (!res.ok) throw new Error(`Failed to update alert rule (${res.status})`);
+  return res.json();
+}
+
+export async function deleteAlertRule(id) {
+  const res = await fetch(`${API_BASE}/alert-rules/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Failed to delete alert rule (${res.status})`);
+  return res.json();
+}
+
