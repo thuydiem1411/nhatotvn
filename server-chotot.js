@@ -4,6 +4,8 @@ import path from "path";
 import axios from "axios";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
+import fs from "fs";
+import multer from "multer";
 import fetchChotot from "./fetchChotot.js";
 import cron from "node-cron";
 import { backupAdImages, batchBackupAdsFromMysql } from "./imageBackup.js";
@@ -11,9 +13,25 @@ import * as chototMysql from "./db/chototMysql.js";
 import { cloudinaryAccounts } from "./cloudinaryConfig.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const dataDir = path.join(__dirname, "public-chotot", "data");
+
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+}
 
 const app = express();
 app.use(express.static("public-chotot"));
+
+const dataUpload = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, cb) => cb(null, dataDir),
+        filename: (_req, file, cb) => {
+            // Keep original filename but normalize to avoid invalid paths.
+            const safeName = path.basename(file.originalname || "").replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
+            cb(null, safeName || `upload-${Date.now()}.bin`);
+        }
+    })
+});
 
 if (!chototMysql.isEnabled()) {
     throw new Error("MySQL must be enabled. JSON runtime mode has been removed.");
@@ -304,6 +322,105 @@ app.get("/api/cloudinary-status", (req, res) => {
             storageUsed: acc.storageUsed
         }))
     });
+});
+
+// Admin page: list data files + upload + download
+app.get("/admin/data-files", async (_req, res) => {
+    try {
+        const entries = await fs.promises.readdir(dataDir, { withFileTypes: true });
+        const files = await Promise.all(
+            entries
+                .filter((e) => e.isFile())
+                .map(async (e) => {
+                    const full = path.join(dataDir, e.name);
+                    const stat = await fs.promises.stat(full);
+                    return {
+                        name: e.name,
+                        size: stat.size,
+                        mtime: stat.mtime
+                    };
+                })
+        );
+        files.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+
+        const rows = files
+            .map((f) => {
+                const href = `/admin/data-files/download/${encodeURIComponent(f.name)}`;
+                return `<tr>
+  <td>${f.name}</td>
+  <td>${f.size.toLocaleString("en-US")} bytes</td>
+  <td>${f.mtime.toLocaleString("vi-VN")}</td>
+  <td><a href="${href}">Download</a></td>
+</tr>`;
+            })
+            .join("\n");
+
+        const html = `<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Data Files</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { margin-bottom: 8px; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
+    th { background: #f5f5f5; }
+    .muted { color: #666; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>public-chotot/data</h1>
+  <p class="muted">Upload file mới hoặc tải file hiện có.</p>
+
+  <div class="card">
+    <form action="/admin/data-files/upload" method="post" enctype="multipart/form-data">
+      <input type="file" name="file" required />
+      <button type="submit">Upload</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Size</th>
+          <th>Updated</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows || `<tr><td colspan="4">No files</td></tr>`}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>`;
+
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        return res.send(html);
+    } catch (err) {
+        return res.status(500).send(`Error listing files: ${err?.message || err}`);
+    }
+});
+
+app.post("/admin/data-files/upload", dataUpload.single("file"), (req, res) => {
+    if (!req.file) {
+        return res.status(400).send("Missing file");
+    }
+    return res.redirect("/admin/data-files");
+});
+
+app.get("/admin/data-files/download/:name", (req, res) => {
+    const raw = String(req.params.name || "");
+    const safeName = path.basename(raw);
+    if (!safeName) return res.status(400).send("Invalid filename");
+    const full = path.join(dataDir, safeName);
+    if (!fs.existsSync(full)) return res.status(404).send("File not found");
+    return res.download(full, safeName);
 });
 
 app.listen(3009, () => {

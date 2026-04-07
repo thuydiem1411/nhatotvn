@@ -10,6 +10,8 @@ export default defineConfig({
     emptyOutDir: false,
   },
   server: {
+    host: true,
+    allowedHosts: [".nport.link"],
     port: 5173,
     proxy: {
       "/api": {
