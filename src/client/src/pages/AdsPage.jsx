@@ -18,9 +18,9 @@ export function AdsPage() {
     return id || null;
   });
   const [viewMode, setViewMode] = useState(() => {
-    if (typeof window === "undefined") return "split";
+    if (typeof window === "undefined") return "list";
     const v = new URLSearchParams(window.location.search).get("view");
-    return v === "list" || v === "map" || v === "split" ? v : "split";
+    return v === "list" || v === "map" || v === "split" ? v : "list";
   });
   const { detail, loadingDetail, detailError } = useAdDetail(selectedAdId);
   const handleSelectAd = useCallback((adId) => {
