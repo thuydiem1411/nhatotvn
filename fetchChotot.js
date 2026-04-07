@@ -371,21 +371,19 @@ async function mergeByAdId(newAds, areaId, category, freshAdsCollector = null) {
         // Add category info to ad
         merged.category = category;
         merged.category_name = CATEGORY_DISPLAY_NAMES[category];
-
         // Keep original guards (company_ad, phone_hidden, list_id, rate-limit),
         // then only fetch for:
         // 1) new ads without phone, or
-        // 2) existing ads whose stored DB phone is placeholder text (not callable digits).
+        // 2) existing ads whose stored DB phone is missing or placeholder text (not callable digits).
         const hasExisting = Boolean(existing?.ad_id);
-        const shouldRefreshPlaceholder = hasExisting && hasPlaceholderPhoneText(existing?.phone);
+        const shouldRefreshExistingPhone = hasExisting && (!existing?.phone || hasPlaceholderPhoneText(existing?.phone));
         const shouldFetchNewAd = !hasExisting && !merged.phone;
         const shouldTryFetchPhone =
             !merged.company_ad &&
             !merged.phone_hidden &&
             merged.list_id &&
             countGetPhoneFailed < 3 &&
-            (shouldFetchNewAd || shouldRefreshPlaceholder);
-
+            (shouldFetchNewAd || shouldRefreshExistingPhone);
         if (shouldTryFetchPhone) {
             const phoneResult = await getPhoneNumber(merged.list_id);
             if (phoneResult?.phone) {
