@@ -355,6 +355,18 @@ app.get("/admin/data-files", async (_req, res) => {
             })
             .join("\n");
 
+        // Hidden anchors for "Download all" — triggers one browser download per file (no zip).
+        const downloadAllAnchors = files
+            .map((f) => {
+                const href = `/admin/data-files/download/${encodeURIComponent(f.name)}`;
+                const escDownload = String(f.name)
+                    .replace(/&/g, "&amp;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/</g, "&lt;");
+                return `<a href="${href}" download="${escDownload}"></a>`;
+            })
+            .join("\n");
+
         const html = `<!doctype html>
 <html lang="vi">
 <head>
@@ -369,11 +381,15 @@ app.get("/admin/data-files", async (_req, res) => {
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
     th { background: #f5f5f5; }
     .muted { color: #666; font-size: 13px; }
+    .row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+    button.secondary { background: #f0f0f0; border: 1px solid #ccc; border-radius: 6px; padding: 8px 14px; cursor: pointer; font-size: 14px; }
+    button.secondary:hover:not(:disabled) { background: #e5e5e5; }
+    button.secondary:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
   <h1>public-chotot/data</h1>
-  <p class="muted">Upload file mới hoặc tải file hiện có.</p>
+  <p class="muted">Upload file mới hoặc tải file hiện có. &quot;Download all&quot; tải từng file (không nén zip).</p>
 
   <div class="card">
     <form action="/admin/data-files/upload" method="post" enctype="multipart/form-data">
@@ -383,6 +399,13 @@ app.get("/admin/data-files", async (_req, res) => {
   </div>
 
   <div class="card">
+    <div class="row-actions">
+      <button type="button" class="secondary" id="download-all-btn" ${files.length === 0 ? "disabled" : ""}>Download all</button>
+      <span class="muted" id="download-all-hint" style="display: none;">Đang kích hoạt tải từng file…</span>
+    </div>
+    <div id="download-all-sources" style="position:absolute;width:0;height:0;overflow:hidden;" aria-hidden="true">
+${downloadAllAnchors}
+    </div>
     <table>
       <thead>
         <tr>
@@ -397,6 +420,28 @@ app.get("/admin/data-files", async (_req, res) => {
       </tbody>
     </table>
   </div>
+  <script>
+  (function () {
+    var btn = document.getElementById("download-all-btn");
+    var hint = document.getElementById("download-all-hint");
+    var box = document.getElementById("download-all-sources");
+    if (!btn || !box) return;
+    btn.addEventListener("click", function () {
+      var links = box.querySelectorAll("a[href]");
+      if (!links.length) return;
+      if (hint) hint.style.display = "inline";
+      var delayMs = 400;
+      links.forEach(function (a, i) {
+        setTimeout(function () {
+          a.click();
+          if (i === links.length - 1 && hint) {
+            setTimeout(function () { hint.style.display = "none"; }, 600);
+          }
+        }, i * delayMs);
+      });
+    });
+  })();
+  </script>
 </body>
 </html>`;
 

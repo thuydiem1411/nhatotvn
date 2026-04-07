@@ -6,7 +6,7 @@
     "start": "node server-chotot.js",
     "start:chotot": "node server-chotot.js",
     "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
-    "dev:server": "node server-chotot.js",
+    "dev:server": "nodemon server-chotot.js",
     "dev:client": "vite --config vite.config.mts",
     "fetch:chotot": "node fetchChotot.js",
     "backup": "node imageBackup.js",

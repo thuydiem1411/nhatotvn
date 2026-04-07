@@ -149,55 +149,6 @@ function ensureDataDir() {
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 }
 
-// Get backup file path with category
-// IMPORTANT: This function ONLY returns backup file path
-// It NEVER creates or writes to -nobackup files
-// Backup files are always updated by crawler (regardless of imgs_bak status)
-function getAreaFile(areaId, category) {
-    const categoryName = CATEGORY_NAMES[category] || 'unknown';
-    return path.join(dataDir, `ads-${areaId}-${categoryName}.json`);
-}
-
-// Load nobackup file for recovery check (READ ONLY - never write to this file from crawler)
-function loadNobackupFile(areaId, category) {
-    const categoryName = CATEGORY_NAMES[category] || 'unknown';
-    const nobackupFile = path.join(dataDir, `ads-${areaId}-${categoryName}-nobackup.json`);
-    
-    if (!fs.existsSync(nobackupFile)) return [];
-    
-    try {
-        const content = fs.readFileSync(nobackupFile, 'utf-8');
-        return JSON.parse(content);
-    } catch (err) {
-        console.error(`Error reading nobackup file:`, err.message);
-        return [];
-    }
-}
-
-// Save nobackup file after recovery (remove recovered ads)
-function saveNobackupFile(data, areaId, category) {
-    const categoryName = CATEGORY_NAMES[category] || 'unknown';
-    const nobackupFile = path.join(dataDir, `ads-${areaId}-${categoryName}-nobackup.json`);
-    const tempFile = nobackupFile + '.tmp';
-    
-    try {
-        // Write to temp file first
-        fs.writeFileSync(tempFile, JSON.stringify(data), 'utf-8');
-        // Atomic rename
-        fs.renameSync(tempFile, nobackupFile);
-        return true;
-    } catch (err) {
-        console.error(`Error saving nobackup file:`, err.message);
-        // Cleanup temp file
-        try {
-            if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
-        } catch {}
-        return false;
-    }
-}
-
-
-
 function encryptToE(h) {
     const key = RSAPublicKey.production;
     const cipherB64 = crypto.publicEncrypt(
@@ -327,37 +278,11 @@ async function mergeByAdId(newAds, areaId, category) {
         existingAds = [];
     }
 
-    // Load nobackup file to check for recovery
-    const nobackupAds = loadNobackupFile(areaId, category);
-    const nobackupSet = new Set(nobackupAds.map(ad => ad.ad_id));
-    const recoveredIds = new Set(); // Track recovered ad_ids
-
     const map = new Map(existingAds.map(ad => [ad.ad_id, ad]));
 
     for (const ad of newAds) {
         // Clean data before processing (remove redundant fields to save storage)
         cleanAdData(ad);
-
-        // Check if this ad is being recovered from nobackup
-        if (nobackupSet.has(ad.ad_id)) {
-            console.log(`🔄 Recovery detected: ad ${ad.ad_id} (was in nobackup, now re-crawled)`);
-            recoveredIds.add(ad.ad_id);
-            
-            // Clear only failed imgs_bak, keep successful ones
-            const existing = map.get(ad.ad_id);
-            if (existing?.imgs_bak && existing.imgs_bak.length > 0) {
-                const before = existing.imgs_bak.length;
-                const successBackups = existing.imgs_bak.filter(img => img.s === 'ok');
-                const removed = before - successBackups.length;
-                
-                if (removed > 0) {
-                    console.log(`   Removing ${removed} failed imgs_bak, keeping ${successBackups.length} successful`);
-                    existing.imgs_bak = successBackups;
-                } else {
-                    console.log(`   All ${before} imgs_bak are successful, keeping all`);
-                }
-            }
-        }
 
         const existing = map.get(ad.ad_id) || {};
         const merged = mergeNonNull(existing, ad);
@@ -423,14 +348,6 @@ async function mergeByAdId(newAds, areaId, category) {
         }
 
         map.set(ad.ad_id, merged);
-    }
-
-    // Remove recovered ads from nobackup file
-    if (recoveredIds.size > 0) {
-        const updatedNobackup = nobackupAds.filter(ad => !recoveredIds.has(ad.ad_id));
-        if (saveNobackupFile(updatedNobackup, areaId, category)) {
-            console.log(`✅ Removed ${recoveredIds.size} recovered ads from nobackup`);
-        }
     }
 
     return Array.from(map.values());

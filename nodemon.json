@@ -1,0 +1,11 @@
+{
+  "watch": [
+    "server-chotot.js",
+    "fetchChotot.js",
+    "imageBackup.js",
+    "cloudinaryConfig.js",
+    "db"
+  ],
+  "ext": "js",
+  "ignore": ["node_modules/**", "public-chotot/**", "src/**", "scripts/**"]
+}

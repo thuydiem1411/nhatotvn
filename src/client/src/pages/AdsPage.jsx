@@ -72,8 +72,14 @@ export function AdsPage() {
 
   return (
     <main className="mx-auto max-w-7xl p-4 md:p-6">
-      <header className="mb-4 rounded-2xl bg-slate-900 p-5 text-white shadow-lg">
+      <header className="mb-4 flex flex-col gap-2 rounded-2xl bg-slate-900 p-5 text-white shadow-lg sm:flex-row sm:items-start sm:justify-between">
         <h1 className="text-2xl font-bold">Chợ Tốt Listing Dashboard</h1>
+        <a
+          href="/admin/data-files"
+          className="shrink-0 text-sm font-medium text-sky-300 underline decoration-sky-400/70 underline-offset-2 hover:text-white"
+        >
+          Quản lý file data (admin)
+        </a>
       </header>
 
       <div className="mb-3 md:sticky md:top-3 md:z-[1000]">
