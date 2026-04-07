@@ -388,6 +388,15 @@ async function mergeByAdId(newAds, areaId, category, freshAdsCollector = null) {
             const phoneResult = await getPhoneNumber(merged.list_id);
             if (phoneResult?.phone) {
                 merged.phone = phoneResult.phone;
+                if (merged.account_oid) {
+                    try {
+                        await chototMysql.upsertSellerPhones(merged.account_oid, [
+                            { phone: phoneResult.phone, source_ad_id: merged.ad_id }
+                        ]);
+                    } catch (e) {
+                        console.error(`❌ Lỗi lưu seller phone cho account_oid ${merged.account_oid}:`, e?.message || e);
+                    }
+                }
                 console.log(
                     `✅ Đã lấy phone: ${phoneResult.phone} cho ad_id ${merged.ad_id}, area ${areaId}, category ${category}`
                 );
