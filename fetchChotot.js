@@ -431,19 +431,7 @@ async function mergeByAdId(newAds, areaId, category, freshAdsCollector = null) {
             // Delay nhẹ giữa các request phone để tránh bị block
             await new Promise(resolve => setTimeout(resolve, 500));
         } else if (countGetPhoneFailed >= 3) {
-            // Gửi webhook bất đồng bộ và không chờ kết quả để tránh ngắt terminal
-            // fetch("https://pushmore.io/webhook/uYssJKQjzGF5D1W1ZmZPctvK", {
-            //     method: "POST",
-            //     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            //     body: `${merged.ad_id} | ${merged.phone}`
-            // })
-            // .then(() => {
-            //     // console.log(`✅ Webhook sent for ad_id ${merged.ad_id}, area ${areaId}`);
-            // })
-            // .catch((err) => {
-            //     // console.error(`❌ Lỗi gửi webhook cho ad_id ${merged.ad_id}:`, err?.message || err);
-            //     // Không throw error để tránh ngắt terminal
-            // });
+            await sendPushmoreAlert(`❌ Bị rate limit khi lấy phone cho ad_id ${merged.ad_id}, area ${areaId}, category ${category}`);
         }
 
         map.set(ad.ad_id, merged);
