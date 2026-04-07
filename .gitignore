@@ -8,6 +8,7 @@ lerna-debug.log*
 public-chotot/data/
 public/data/data.json
 uploads/
+public-chotot/db-backups/
 *.tmp
 *.temp
 
