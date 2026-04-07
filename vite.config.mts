@@ -18,6 +18,11 @@ export default defineConfig({
         target: "http://127.0.0.1:3009",
         changeOrigin: true,
       },
+      // Admin HTML (data-files list/upload/download) is served by server-chotot.js, not Vite.
+      "/admin": {
+        target: "http://127.0.0.1:3009",
+        changeOrigin: true,
+      },
     },
   },
 });
