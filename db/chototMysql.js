@@ -1097,7 +1097,6 @@ export async function replaceAreaCategoryListings(areaV2, categoryNum, ads) {
 
 /** Minimum length for server-side search (LIKE) — plan Phần 4. */
 const MIN_SEARCH_LEN = 2;
-const MAP_POINTS_MAX = 8000;
 const LIST_MAX_LIMIT = 100;
 
 /** Escape % and _ for LIKE patterns (MySQL default escape). */
@@ -1279,7 +1278,7 @@ export async function queryAdsListV2(filters) {
 }
 
 /**
- * Lightweight points for Leaflet (same filters; capped rows).
+ * Lightweight points for Leaflet (same filters; returns all matched rows).
  */
 export async function queryMapPointsV2(filters) {
     const p = getPool();
@@ -1289,8 +1288,8 @@ export async function queryMapPointsV2(filters) {
     const sql = `SELECT l.ad_id, l.subject, l.price_string, l.price,
     l.category, l.company_ad, l.phone,
     l.location, l.latitude, l.longitude
-    FROM chotot_listing l ${joinSql} WHERE ${whereSql} ORDER BY ${orderBy} LIMIT ?`;
-    const [rows] = await p.execute(sql, [...params, MAP_POINTS_MAX]);
+    FROM chotot_listing l ${joinSql} WHERE ${whereSql} ORDER BY ${orderBy}`;
+    const [rows] = await p.execute(sql, params);
     return { items: rows.map(toMapPointDto) };
 }
 
