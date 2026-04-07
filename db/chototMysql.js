@@ -2,6 +2,7 @@ import mysql from 'mysql2/promise';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
+import { spawn } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -934,6 +935,14 @@ async function upsertListingRowAndChildren(conn, ad, areaV2, categoryNum) {
     await syncListingChildren(conn, ad);
 }
 
+function getListingTimeScore(adLike) {
+    const t1 = Number(adLike?.list_time);
+    const t2 = Number(adLike?.orig_list_time);
+    const a = Number.isFinite(t1) ? t1 : 0;
+    const b = Number.isFinite(t2) ? t2 : 0;
+    return Math.max(a, b);
+}
+
 /**
  * Load assembled ads by primary keys only (no full-area scan of wide rows in one query).
  */
@@ -990,6 +999,72 @@ export async function upsertListingsForCrawl(areaV2, categoryNum, ads) {
     } finally {
         conn.release();
     }
+}
+
+/**
+ * Import write path: upsert by ad_id, but only when incoming listing is newer.
+ * "Newer" is defined as max(list_time, orig_list_time).
+ * This avoids deleting and prevents older area snapshots from overwriting newer data.
+ */
+export async function upsertListingsForImport(areaV2, categoryNum, ads) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    if (!ads?.length) return { processed: 0, inserted: 0, updated: 0, skipped: 0 };
+
+    const normalized = (ads || []).filter((a) => a && typeof a === 'object');
+    const adIds = [...new Set(
+        normalized
+            .map((a) => Number(a.ad_id))
+            .filter((n) => Number.isFinite(n) && n > 0)
+    )];
+
+    const existingScoreById = new Map();
+    const CHUNK = 800;
+    for (let i = 0; i < adIds.length; i += CHUNK) {
+        const chunk = adIds.slice(i, i + CHUNK);
+        const ph = chunk.map(() => '?').join(',');
+        const [rows] = await p.execute(
+            `SELECT ad_id, list_time, orig_list_time FROM chotot_listing WHERE ad_id IN (${ph})`,
+            chunk
+        );
+        for (const r of rows) {
+            existingScoreById.set(Number(r.ad_id), getListingTimeScore(r));
+        }
+    }
+
+    const conn = await p.getConnection();
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+    try {
+        await conn.beginTransaction();
+        for (const ad of normalized) {
+            const id = Number(ad.ad_id);
+            if (!Number.isFinite(id) || id <= 0) continue;
+
+            const incomingScore = getListingTimeScore(ad);
+            const existingScore = existingScoreById.get(id) ?? null;
+
+            // If existing row is newer or equal, skip this import record.
+            if (existingScore != null && existingScore >= incomingScore) {
+                skipped += 1;
+                continue;
+            }
+
+            const [exists] = await conn.execute('SELECT 1 FROM chotot_listing WHERE ad_id = ? LIMIT 1', [id]);
+            await upsertListingRowAndChildren(conn, ad, areaV2, categoryNum);
+            if (!exists.length) inserted += 1;
+            else updated += 1;
+        }
+        await conn.commit();
+    } catch (e) {
+        await conn.rollback();
+        throw e;
+    } finally {
+        conn.release();
+    }
+
+    return { processed: normalized.length, inserted, updated, skipped };
 }
 
 /**
@@ -1501,6 +1576,62 @@ async function insertIgnoreSellerPhone(conn, ad) {
         phone,
         adId
     ]);
+}
+
+export async function createSqlBackupFile(outputPath) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const host = process.env.MYSQL_HOST || '127.0.0.1';
+    const port = process.env.MYSQL_PORT ? String(process.env.MYSQL_PORT) : '3306';
+    const user = process.env.MYSQL_USER || 'root';
+    const password = process.env.MYSQL_PASSWORD || '';
+    const database = process.env.MYSQL_DATABASE;
+    if (!database) throw new Error('MYSQL_DATABASE is required for mysqldump');
+
+    const mysqldumpBin = process.env.MYSQLDUMP_PATH || 'mysqldump';
+    const args = [
+        '--single-transaction',
+        '--skip-lock-tables',
+        '--default-character-set=utf8mb4',
+        '--host',
+        host,
+        '--port',
+        port,
+        '--user',
+        user,
+        database
+    ];
+
+    await fs.promises.mkdir(path.dirname(outputPath), { recursive: true });
+
+    await new Promise((resolve, reject) => {
+        const out = fs.createWriteStream(outputPath, { encoding: 'utf8' });
+        const child = spawn(mysqldumpBin, args, {
+            env: {
+                ...process.env,
+                MYSQL_PWD: password
+            },
+            windowsHide: true
+        });
+
+        let stderr = '';
+        child.stdout.pipe(out);
+        child.stderr.on('data', (d) => {
+            stderr += d.toString();
+        });
+        child.on('error', (err) => {
+            out.close(() => reject(new Error(`Failed to start mysqldump: ${err.message}`)));
+        });
+        child.on('close', (code) => {
+            out.close(() => {
+                if (code === 0) {
+                    resolve();
+                    return;
+                }
+                reject(new Error(`mysqldump exited with code ${code}: ${stderr.trim()}`));
+            });
+        });
+    });
 }
 
 export async function closePool() {

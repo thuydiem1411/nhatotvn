@@ -14,9 +14,13 @@ import { cloudinaryAccounts } from "./cloudinaryConfig.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dataDir = path.join(__dirname, "public-chotot", "data");
+const dbBackupDir = path.join(__dirname, "public-chotot", "db-backups");
 
 if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
+}
+if (!fs.existsSync(dbBackupDir)) {
+    fs.mkdirSync(dbBackupDir, { recursive: true });
 }
 
 const app = express();
@@ -328,6 +332,7 @@ app.get("/api/cloudinary-status", (req, res) => {
 app.get("/admin/data-files", async (_req, res) => {
     try {
         const entries = await fs.promises.readdir(dataDir, { withFileTypes: true });
+        const backupEntries = await fs.promises.readdir(dbBackupDir, { withFileTypes: true });
         const files = await Promise.all(
             entries
                 .filter((e) => e.isFile())
@@ -341,11 +346,36 @@ app.get("/admin/data-files", async (_req, res) => {
                     };
                 })
         );
+        const dbBackups = await Promise.all(
+            backupEntries
+                .filter((e) => e.isFile() && e.name.endsWith(".sql"))
+                .map(async (e) => {
+                    const full = path.join(dbBackupDir, e.name);
+                    const stat = await fs.promises.stat(full);
+                    return {
+                        name: e.name,
+                        size: stat.size,
+                        mtime: stat.mtime
+                    };
+                })
+        );
         files.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+        dbBackups.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
 
         const rows = files
             .map((f) => {
                 const href = `/admin/data-files/download/${encodeURIComponent(f.name)}`;
+                return `<tr>
+  <td>${f.name}</td>
+  <td>${f.size.toLocaleString("en-US")} bytes</td>
+  <td>${f.mtime.toLocaleString("vi-VN")}</td>
+  <td><a href="${href}">Download</a></td>
+</tr>`;
+            })
+            .join("\n");
+        const backupRows = dbBackups
+            .map((f) => {
+                const href = `/admin/db-backups/download/${encodeURIComponent(f.name)}`;
                 return `<tr>
   <td>${f.name}</td>
   <td>${f.size.toLocaleString("en-US")} bytes</td>
@@ -396,6 +426,26 @@ app.get("/admin/data-files", async (_req, res) => {
       <input type="file" name="file" required />
       <button type="submit">Upload</button>
     </form>
+  </div>
+
+  <div class="card">
+    <h3>MySQL .sql backup</h3>
+    <form action="/admin/db-backups/create" method="post" style="margin-bottom: 10px;">
+      <button type="submit">Backup DB now (.sql)</button>
+    </form>
+    <table>
+      <thead>
+        <tr>
+          <th>Backup file</th>
+          <th>Size</th>
+          <th>Updated</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${backupRows || `<tr><td colspan="4">No SQL backup files</td></tr>`}
+      </tbody>
+    </table>
   </div>
 
   <div class="card">
@@ -457,6 +507,27 @@ app.post("/admin/data-files/upload", dataUpload.single("file"), (req, res) => {
         return res.status(400).send("Missing file");
     }
     return res.redirect("/admin/data-files");
+});
+
+app.post("/admin/db-backups/create", async (_req, res) => {
+    try {
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const filename = `mysql-backup-${stamp}.sql`;
+        const full = path.join(dbBackupDir, filename);
+        await chototMysql.createSqlBackupFile(full);
+        return res.redirect("/admin/data-files");
+    } catch (err) {
+        return res.status(500).send(`Backup failed: ${err?.message || err}`);
+    }
+});
+
+app.get("/admin/db-backups/download/:name", (req, res) => {
+    const raw = String(req.params.name || "");
+    const safeName = path.basename(raw);
+    if (!safeName.endsWith(".sql")) return res.status(400).send("Invalid backup filename");
+    const full = path.join(dbBackupDir, safeName);
+    if (!fs.existsSync(full)) return res.status(404).send("Backup file not found");
+    return res.download(full, safeName);
 });
 
 app.get("/admin/data-files/download/:name", (req, res) => {
@@ -528,13 +599,5 @@ app.get("/api/demo-phone", async (req, res) => {
             error: err?.message || String(err), 
             data: err?.response?.data 
         });
-    }
-});
-
-cron.schedule('* * * * *', async () => {
-    try {
-        await axios.get('https://nhatot.onrender.com/');
-    } catch (err) {
-        console.error('Lỗi khi gọi url:', err.message);
     }
 });

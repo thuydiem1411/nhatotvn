@@ -170,15 +170,32 @@ async function getPhoneNumber(listId) {
         }
         return { phone: null, hiddenExpired: false, ok: false };
     } catch (err) {
-        if (err.status == 429) {
+        const status = err?.response?.status ?? err?.status;
+        if (status === 429) {
             countGetPhoneFailed++;
         }
-        if (err?.status == 404 && err?.response?.data?.message?.includes(listId)) {
+        if (status === 404 && err?.response?.data?.message?.includes(listId)) {
             return { phone: null, hiddenExpired: true, ok: false };
         }
         console.error(`❌ Lỗi lấy phone cho list_id ${listId}:`, err?.message || err);
         return { phone: null, hiddenExpired: false, ok: false };
     }
+}
+
+function normalizePhoneDigits(value) {
+    return String(value || '').replace(/\D/g, '');
+}
+
+function isCallablePhone(value) {
+    const digits = normalizePhoneDigits(value);
+    return digits.length >= 8;
+}
+
+function hasPlaceholderPhoneText(value) {
+    if (value == null) return false;
+    const s = String(value).trim();
+    if (!s) return false;
+    return !isCallablePhone(s);
 }
 
 async function fetchTheiaListIds(accountOid) {
@@ -296,38 +313,50 @@ async function mergeByAdId(newAds, areaId, category) {
         merged.category = category;
         merged.category_name = CATEGORY_DISPLAY_NAMES[category];
 
-        // Kiểm tra và lấy phone nếu cần
-        if (!merged.phone && !merged.company_ad && !merged.phone_hidden && merged.list_id && countGetPhoneFailed < 3) {
+        // Retry phone for new ads with missing phone, or existing ads that currently store placeholder text.
+        const hasExisting = Boolean(existing?.ad_id);
+        const shouldRefreshPlaceholder = hasExisting && hasPlaceholderPhoneText(merged.phone);
+        const shouldFetchMissing = !merged.phone;
+        const shouldTryFetchPhone =
+            !merged.company_ad &&
+            merged.list_id &&
+            countGetPhoneFailed < 3 &&
+            (shouldFetchMissing || shouldRefreshPlaceholder);
+
+        if (shouldTryFetchPhone) {
             const phoneResult = await getPhoneNumber(merged.list_id);
             if (phoneResult?.phone) {
                 merged.phone = phoneResult.phone;
                 console.log(
                     `✅ Đã lấy phone: ${phoneResult.phone} cho ad_id ${merged.ad_id}, area ${areaId}, category ${category}`
                 );
-            } else {
-                const shouldFallback = PHONE_FALLBACK_THEIA && merged.account_oid;
-                if (shouldFallback) {
-                    try {
-                        const extra = await fetchPhonesByAccountOid(merged.account_oid);
-                        if (extra.phones.length > 0) {
-                            merged.phone = extra.phones[0];
-                            console.log(
-                                `✅ Fallback theia lấy được ${extra.phones.length} phone cho account_oid ${merged.account_oid}`
-                            );
-                        } else {
-                            console.log(
-                                `❌ Không lấy được phone (kể cả theia) cho ad_id ${merged.ad_id}, account_oid ${merged.account_oid}`
-                            );
-                        }
-                    } catch (e) {
-                        console.error(
-                            `❌ Lỗi fallback theia cho account_oid ${merged.account_oid}:`,
-                            e?.message || e
+            }
+
+            const shouldFallback =
+                PHONE_FALLBACK_THEIA &&
+                merged.account_oid &&
+                (!phoneResult?.phone || !isCallablePhone(phoneResult.phone));
+            if (shouldFallback) {
+                try {
+                    const extra = await fetchPhonesByAccountOid(merged.account_oid);
+                    if (extra.phones.length > 0) {
+                        merged.phone = extra.phones[0];
+                        console.log(
+                            `✅ Fallback theia lấy được ${extra.phones.length} phone cho account_oid ${merged.account_oid}`
+                        );
+                    } else {
+                        console.log(
+                            `❌ Không lấy được phone (kể cả theia) cho ad_id ${merged.ad_id}, account_oid ${merged.account_oid}`
                         );
                     }
-                } else {
-                    console.log(`❌ Không lấy được phone cho ad_id ${merged.ad_id}, area ${areaId}, category ${category}`);
+                } catch (e) {
+                    console.error(
+                        `❌ Lỗi fallback theia cho account_oid ${merged.account_oid}:`,
+                        e?.message || e
+                    );
                 }
+            } else if (!phoneResult?.phone) {
+                console.log(`❌ Không lấy được phone cho ad_id ${merged.ad_id}, area ${areaId}, category ${category}`);
             }
             // Delay nhẹ giữa các request phone để tránh bị block
             await new Promise(resolve => setTimeout(resolve, 500));

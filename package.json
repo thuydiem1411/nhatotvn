@@ -7,7 +7,7 @@
     "start:chotot": "node server-chotot.js",
     "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
     "dev:server": "nodemon server-chotot.js",
-    "dev:client": "vite --config vite.config.mts",
+    "dev:client": "vite --config vite.config.mts --port 5174",
     "fetch:chotot": "node fetchChotot.js",
     "backup": "node imageBackup.js",
     "backup:all": "node batchBackupAll.js",

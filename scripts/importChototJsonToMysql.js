@@ -6,7 +6,7 @@ import axios from 'axios';
 import {
     isEnabled,
     ensureSchema,
-    replaceAreaCategoryListings,
+    upsertListingsForImport,
     upsertRegionTreeFromPayload,
     closePool
 } from '../db/chototMysql.js';
@@ -22,9 +22,14 @@ const CATEGORY_BY_NAME = { tro: 1050, nha: 1020 };
  * ads-13118-tro.json -> area 13118, category 1050
  */
 function parseAdsFilename(name) {
-    const m = name.match(/^ads-(\d+)-(tro|nha)\.json$/);
+    const m = name.match(/^ads-(\d+)-(tro|nha)(-nobackup)?\.json$/);
     if (!m) return null;
-    return { areaV2: parseInt(m[1], 10), categoryNum: CATEGORY_BY_NAME[m[2]], kind: m[2] };
+    return {
+        areaV2: parseInt(m[1], 10),
+        categoryNum: CATEGORY_BY_NAME[m[2]],
+        kind: m[2],
+        isNobackup: Boolean(m[3])
+    };
 }
 
 async function main() {
@@ -64,7 +69,7 @@ async function main() {
         process.exit(1);
     }
 
-    const files = fs.readdirSync(dataDir).filter((f) => /^ads-\d+-(tro|nha)\.json$/.test(f));
+    const files = fs.readdirSync(dataDir).filter((f) => /^ads-\d+-(tro|nha)(-nobackup)?\.json$/.test(f));
     files.sort();
 
     console.log(`Found ${files.length} area JSON files`);
@@ -91,8 +96,11 @@ async function main() {
             delete out.date;
             return out;
         });
-        await replaceAreaCategoryListings(meta.areaV2, meta.categoryNum, normalizedAds);
-        console.log(`Imported ${file}: ${ads.length} ads (area=${meta.areaV2}, category=${meta.categoryNum})`);
+        const r = await upsertListingsForImport(meta.areaV2, meta.categoryNum, normalizedAds);
+        console.log(
+            `Imported ${file}: ${ads.length} ads (area=${meta.areaV2}, category=${meta.categoryNum}, nobackup=${meta.isNobackup})`
+        );
+        console.log(`  -> processed=${r.processed}, inserted=${r.inserted}, updated=${r.updated}, skipped=${r.skipped}`);
     }
 
     await closePool();
