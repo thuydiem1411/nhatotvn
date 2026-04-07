@@ -240,6 +240,20 @@ app.get("/api/sellers/:accountOid/phones", async (req, res) => {
     }
 });
 
+app.get("/api/sellers/:accountOid/profile", async (req, res) => {
+    try {
+        if (!chototMysql.isEnabled()) {
+            return res.status(503).json({ error: "MySQL not enabled" });
+        }
+        const accountOid = req.params.accountOid;
+        if (!accountOid) return res.status(400).json({ error: "Missing accountOid" });
+        const data = await chototMysql.getSellerProfile(accountOid);
+        return res.json(data);
+    } catch (err) {
+        return res.status(500).json({ error: err?.message || String(err) });
+    }
+});
+
 async function fetchPhoneByListId(listId, env = "production") {
     try {
         const e = encryptToE(listId, env).e;
@@ -537,6 +551,10 @@ app.get("/admin/data-files/download/:name", (req, res) => {
     const full = path.join(dataDir, safeName);
     if (!fs.existsSync(full)) return res.status(404).send("File not found");
     return res.download(full, safeName);
+});
+
+app.get("/seller/:accountOid", (_req, res) => {
+    return res.sendFile(path.join(__dirname, "public-chotot", "index.html"));
 });
 
 app.listen(3009, () => {

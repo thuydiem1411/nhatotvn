@@ -63,3 +63,11 @@ export async function fetchAndSyncSellerPhones(accountOid) {
   return res.json();
 }
 
+export async function fetchSellerProfile(accountOid) {
+  const res = await fetch(`${API_BASE}/sellers/${accountOid}/profile`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch seller profile (${res.status})`);
+  }
+  return res.json();
+}
+

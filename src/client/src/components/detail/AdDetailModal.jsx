@@ -218,7 +218,17 @@ export function AdDetailModal({ adId, detail, loading, error, onClose, onShareCu
               Price: <strong>{detail.price_string || detail.price || "N/A"}</strong>
             </p>
             <p className="text-sm text-slate-700">
-              Seller:  <a href={`https://www.chotot.com/user/${detail.account_oid}`} target="_blank" rel="noreferrer" className="font-medium text-blue-600 hover:underline">{detail.full_name || detail.account_name || "Unknown"}</a> <a href={`https://chat.chotot.com/chatroom/join/${window.btoa(`${detail.account_id}|${detail.list_id}`)}`} target="_blank" rel="noreferrer" className=" ml-2 font-medium text-blue-600 hover:underline"><i className="mdi mdi-message"></i> Chat</a>
+              Seller:{" "}
+              {detail.account_oid ? (
+                <a
+                  href={`/seller/${encodeURIComponent(detail.account_oid)}`}
+                  className="font-medium text-blue-600 hover:underline"
+                >
+                  {detail.full_name || detail.account_name || "Unknown"}
+                </a>
+              ) : (
+                <span>{detail.full_name || detail.account_name || "Unknown"}</span>
+              )}
             </p>
             <p className="text-sm text-slate-700">
               Phone: {detail.phone || "Hidden/Unavailable"}
@@ -245,15 +255,17 @@ export function AdDetailModal({ adId, detail, loading, error, onClose, onShareCu
             </p>
             {detail.list_id && (
               <p className="text-sm text-slate-700">
-                Link:{" "}
+                Link on Chotot:{" "}
                 <a
                   href={`https://www.chotot.com/mua-ban-nha-dat/${detail.list_id}.htm`}
                   target="_blank"
                   rel="noreferrer"
                   className="font-medium text-blue-600 hover:underline"
                 >
-                  Open on Chotot
+                  <i className="mdi mdi-link"></i> Bài đăng
                 </a>
+                <a href={`https://www.chotot.com/user/${detail.account_oid}`} target="_blank" rel="noreferrer" className=" ml-2 font-medium text-blue-600 hover:underline"><i className="mdi mdi-account"></i> Tài khoản</a>
+                <a href={`https://chat.chotot.com/chatroom/join/${window.btoa(`${detail.account_id}|${detail.list_id}`)}`} target="_blank" rel="noreferrer" className=" ml-2 font-medium text-blue-600 hover:underline"><i className="mdi mdi-message"></i> Chat nhanh</a>
               </p>
             )}
 

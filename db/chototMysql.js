@@ -1478,6 +1478,46 @@ export async function getSellerPhones(accountOid) {
     return rows.map((r) => ({ phone: r.phone, source_ad_id: r.source_ad_id }));
 }
 
+export async function getSellerProfile(accountOid) {
+    const p = getPool();
+    if (!p) return { seller: null, phones: [], listings: [] };
+    const oid = String(accountOid || '').trim();
+    if (!oid) return { seller: null, phones: [], listings: [] };
+
+    const [sellerRows] = await p.execute(
+        `SELECT account_oid, full_name, avatar, sold_ads, live_ads
+         FROM chotot_seller
+         WHERE account_oid = ?
+         LIMIT 1`,
+        [oid]
+    );
+    const seller = sellerRows[0] || null;
+
+    const [phoneRows] = await p.execute(
+        `SELECT phone, source_ad_id
+         FROM chotot_seller_phone
+         WHERE account_oid = ?
+         ORDER BY phone ASC`,
+        [oid]
+    );
+    const phones = phoneRows.map((r) => ({
+        phone: r.phone,
+        source_ad_id: r.source_ad_id
+    }));
+
+    const [listingRows] = await p.execute(
+        `SELECT ${LISTING_SELECT_COLS}
+         FROM chotot_listing
+         WHERE account_oid = ?
+         ORDER BY list_time DESC, ad_id DESC`,
+        [oid]
+    );
+    const assembled = await assembleAdsFromListingRows(p, listingRows);
+    const listings = assembled.map(toAdListItemDto);
+
+    return { seller, phones, listings };
+}
+
 export async function getSellerPhoneSourceAdIds(accountOid) {
     const p = getPool();
     if (!p) return [];
