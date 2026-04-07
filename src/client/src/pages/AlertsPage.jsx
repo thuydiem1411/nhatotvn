@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { createAlertRule, deleteAlertRule, fetchAlertRules, fetchRegionTree, updateAlertRule } from "../api/adsApi.js";
+import { createAlertRule, deleteAlertRule, fetchAlertRules, fetchRegionTree, updateAlertRule } from "../api/listingApi.js";
 
 const EMPTY_FORM = {
   name: "",

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchRegionTree } from "../api/adsApi.js";
+import { fetchRegionTree } from "../api/listingApi.js";
 
 export function useRegionTree(regionId = 13000, selectedArea = "") {
   const [tree, setTree] = useState({ region: null, areas: [] });

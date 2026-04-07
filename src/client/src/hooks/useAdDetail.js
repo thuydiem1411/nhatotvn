@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchAdDetail } from "../api/adsApi.js";
+import { fetchAdDetail } from "../api/listingApi.js";
 
 export function useAdDetail(adId) {
   const [detail, setDetail] = useState(null);

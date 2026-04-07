@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { buildImageCandidates, reconstructCloudinaryUrl } from "../../utils/imageResolver.js";
-import { fetchSellerPhones } from "../../api/adsApi.js";
+import { fetchSellerPhones } from "../../api/listingApi.js";
 import Hls from "hls.js";
 import { Fancybox } from "@fancyapps/ui";
 import "@fancyapps/ui/dist/fancybox/fancybox.css";

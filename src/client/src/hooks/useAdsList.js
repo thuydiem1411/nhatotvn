@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchAdsList } from "../api/adsApi.js";
+import { fetchAdsList } from "../api/listingApi.js";
 
 const DEFAULT_LIMIT = 20;
 const DEFAULT_FILTERS = {

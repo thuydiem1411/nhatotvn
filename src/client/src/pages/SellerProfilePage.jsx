@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { fetchSellerProfile } from "../api/adsApi.js";
+import { fetchSellerProfile } from "../api/listingApi.js";
 import { AdsList } from "../components/listing/AdsList.jsx";
 import { useAdDetail } from "../hooks/useAdDetail.js";
 import { AdDetailModal } from "../components/detail/AdDetailModal.jsx";

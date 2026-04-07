@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchAdsMapPoints } from "../api/adsApi.js";
+import { fetchAdsMapPoints } from "../api/listingApi.js";
 
 export function useAdsMap(filters) {
   const [points, setPoints] = useState([]);
