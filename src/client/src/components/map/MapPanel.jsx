@@ -71,6 +71,11 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+function buildAddress(ad) {
+  if (ad?.address) return String(ad.address);
+  return [ad?.street_number, ad?.street_name, ad?.ward_name, ad?.area_name].filter(Boolean).join(", ");
+}
+
 export function MapPanel({ points, onSelectAd }) {
   const mapRef = useRef(null);
   const containerRef = useRef(null);
@@ -163,6 +168,7 @@ export function MapPanel({ points, onSelectAd }) {
           const pStr =
             (a.price_string && String(a.price_string).split("/tháng")[0]) ||
             formatMoneyVND(a.price);
+          const address = buildAddress(a);
           return `
             <div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #e2e8f0;">
               <div style="font-size:13px;font-weight:600;color:#0f172a;">${escapeHtml(a.subject || "Không có tiêu đề")}</div>
@@ -171,6 +177,7 @@ export function MapPanel({ points, onSelectAd }) {
                 <span style="font-size:11px;color:#be123c;background:#fff1f2;padding:2px 8px;border-radius:999px;"><i class="mdi ${companyIcon}"></i> ${companyLabel}</span>
                 <span style="font-size:11px;color:#0f766e;background:#ecfeff;padding:2px 8px;border-radius:999px;"><i class="mdi ${categoryIcon}"></i> ${categoryLabel}</span>
               </div>
+              <div style="font-size:11px;color:#475569;margin-top:4px;"><i class="mdi mdi-map-marker-outline"></i> ${escapeHtml(address || "Chưa có địa chỉ")}</div>
               <div style="font-size:11px;color:#475569;margin-top:2px;"><i class="mdi mdi-phone-outline"></i> ${escapeHtml(a.phone || "An/khong co")}</div>
               <div style="margin-top:6px;">
                 <button data-ad-id="${a.ad_id}" class="open-detail-btn" style="border:0;border-radius:8px;background:#0f172a;color:#fff;font-size:12px;font-weight:600;padding:6px 10px;cursor:pointer;">Xem chi tiết</button>
@@ -193,7 +200,11 @@ export function MapPanel({ points, onSelectAd }) {
         btns.forEach((btn) => {
           const adId = btn.getAttribute("data-ad-id");
           if (!adId) return;
-          btn.addEventListener("click", () => onSelectAd(adId), { once: true });
+          btn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onSelectAd(adId);
+          };
         });
       });
       marker.addTo(group);

@@ -26,6 +26,21 @@ function extractFilename(url) {
   return parts.length ? parts[parts.length - 1] : "";
 }
 
+function formatDateTime(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return "N/A";
+  const candidates = [n, n * 1000, Math.floor(n / 1000)];
+  const dates = candidates.map((v) => new Date(v)).filter((d) => Number.isFinite(d.getTime()));
+  if (!dates.length) return "N/A";
+  return dates[0].toLocaleString("vi-VN");
+}
+
+function formatPriceValue(detail) {
+  if (detail?.price_string) return detail.price_string;
+  if (detail?.price == null) return "N/A";
+  return `${Number(detail.price || 0).toLocaleString("vi-VN")} đ`;
+}
+
 function buildGallerySlots(primaryImages, backups) {
   const primaries = Array.isArray(primaryImages) ? primaryImages.filter(Boolean) : [];
   const bakList = Array.isArray(backups) ? backups : [];
@@ -213,27 +228,47 @@ export function AdDetailModal({ adId, detail, loading, error, onClose, onShareCu
         {!loading && !error && detail && (
           <div className="grid gap-4">
             <h3 className="text-xl font-semibold text-slate-900">{detail.subject || "(No subject)"}</h3>
-            <p className="whitespace-pre-line text-sm leading-6 text-slate-700">{detail.body || "No description"}</p>
-            <p className="text-sm text-slate-700">
-              Price: <strong>{detail.price_string || detail.price || "N/A"}</strong>
-            </p>
-            <p className="text-sm text-slate-700">
-              Seller:{" "}
-              {detail.account_oid ? (
-                <a
-                  href={`/seller/${encodeURIComponent(detail.account_oid)}`}
-                  className="font-medium text-blue-600 hover:underline"
-                >
-                  {detail.full_name || detail.account_name || "Unknown"}
-                </a>
-              ) : (
-                <span>{detail.full_name || detail.account_name || "Unknown"}</span>
-              )}
-            </p>
-            <p className="text-sm text-slate-700">
-              Phone: {detail.phone || "Hidden/Unavailable"}
-            </p>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="mb-2 text-sm font-semibold text-slate-800">Thông tin chính</p>
+                <div className="grid gap-1 text-sm text-slate-700">
+                  <p>
+                    Giá: <strong className="text-rose-600">{formatPriceValue(detail)}</strong>
+                  </p>
+                  <p>Diện tích: <strong>{detail.size || "N/A"} m2</strong></p>
+                  <p>Mã tin: <strong>{detail.ad_id ?? "N/A"}</strong></p>
+                  <p>List ID: <strong>{detail.list_id ?? "N/A"}</strong></p>
+                  <p>
+                    Loại:{" "}
+                    <strong>{String(detail.category) === "1050" ? "Phòng trọ" : String(detail.category) === "1020" ? "Nhà ở" : "Khác"}</strong>
+                  </p>
+                  <p>
+                    Người đăng:{" "}
+                    <strong>{detail.company_ad ? "Môi giới" : "Chính chủ"}</strong>
+                  </p>
+                  <p>Ngày đăng: <strong>{formatDateTime(detail.list_time)}</strong></p>
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="mb-2 text-sm font-semibold text-slate-800">Liên hệ & địa chỉ</p>
+                <div className="grid gap-1 text-sm text-slate-700">
+                  <p>
+                    Seller:{" "}
+                    {detail.account_oid ? (
+                      <a href={`/seller/${encodeURIComponent(detail.account_oid)}`} className="font-medium text-blue-600 hover:underline">
+                        {detail.full_name || detail.account_name || "Unknown"}
+                      </a>
+                    ) : (
+                      <span>{detail.full_name || detail.account_name || "Unknown"}</span>
+                    )}
+                  </p>
+                  <p>
+                    Phone:{" "}
+                    <strong>{detail.phone || "Hidden/Unavailable"}</strong>
+                  </p>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <p className="mb-2 text-sm font-medium text-slate-800">Số phone khác theo account</p>
               {loadingPhones ? <p className="text-xs text-slate-500">Đang tải số phone khác...</p> : null}
               {phoneError ? <p className="text-xs text-red-600">{phoneError}</p> : null}
@@ -250,12 +285,27 @@ export function AdDetailModal({ adId, detail, loading, error, onClose, onShareCu
                 </div>
               ) : null}
             </div>
-            <p className="text-sm text-slate-700">
-              Address: {detail.street_number || ""} {detail.street_name || ""}, {detail.ward_name || ""}, {detail.area_name || ""}
-            </p>
+                  <p>
+                    Address:{" "}
+                    <strong>{[detail.street_number, detail.street_name, detail.ward_name, detail.area_name].filter(Boolean).join(", ") || "N/A"}</strong>
+                  </p>
+                  <p>
+                    Area/Ward:{" "}
+                    <strong>{detail.area_name || "N/A"} / {detail.ward_name || "N/A"}</strong>
+                  </p>
+                </div>
+              </section>
+            </div>
+
+            <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+              <span className="rounded-full bg-slate-100 px-2 py-1">Ảnh: {detail.number_of_images || imageCandidates.length || 0}</span>
+              <span className="rounded-full bg-slate-100 px-2 py-1">Video: {asArray(detail.videos).length}</span>
+              <span className="rounded-full bg-slate-100 px-2 py-1">Rating: {detail.average_rating ?? "N/A"}</span>
+              <span className="rounded-full bg-slate-100 px-2 py-1">Status: {detail.status || "N/A"}</span>
+            </div>
             {detail.list_id && (
-              <p className="text-sm text-slate-700">
-                Link on Chotot:{" "}
+              <p className="text-sm text-slate-700 break-words">
+                Link nhanh:{" "}
                 <a
                   href={`https://www.chotot.com/mua-ban-nha-dat/${detail.list_id}.htm`}
                   target="_blank"
@@ -268,6 +318,11 @@ export function AdDetailModal({ adId, detail, loading, error, onClose, onShareCu
                 <a href={`https://chat.chotot.com/chatroom/join/${window.btoa(`${detail.account_id}|${detail.list_id}`)}`} target="_blank" rel="noreferrer" className=" ml-2 font-medium text-blue-600 hover:underline"><i className="mdi mdi-message"></i> Chat nhanh</a>
               </p>
             )}
+
+            <section className="rounded-xl border border-slate-200 bg-white p-3">
+              <p className="mb-2 text-sm font-semibold text-slate-800">Mô tả chi tiết</p>
+              <p className="whitespace-pre-line text-sm leading-6 text-slate-700">{detail.body || "No description"}</p>
+            </section>
 
             <div ref={galleryRootRef}>
               <h4 className="mb-2 text-sm font-semibold text-slate-800">Media</h4>

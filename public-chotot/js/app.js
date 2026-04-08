@@ -7,7 +7,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     const filterCategoryEl = document.getElementById("filter-category");
     const filterOnlyBackupImgEl = document.getElementById("filter-only-backup-img");
     const searchEl = document.getElementById("search-input");
-    const detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+    const detailModalEl = document.getElementById('detailModal');
+    const detailModal = new bootstrap.Modal(detailModalEl);
     const modalContent = document.getElementById('modalContent');
     const scrollTopBtn = document.getElementById('scrollTopBtn');
     const priceMinInput = document.getElementById('price-min');
@@ -41,6 +42,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     let markersLayer = null;
     let focusCircle = null;
     let cardMapsCache = new Map(); // Cache map instances for cards
+
+    // Ensure modal can be reopened reliably after close.
+    detailModalEl?.addEventListener('hidden.bs.modal', () => {
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('padding-right');
+        document.querySelectorAll('.modal-backdrop').forEach((el) => el.remove());
+    });
 
     // Reconstruct full Cloudinary URL from cloudName + relative path
     function reconstructCloudinaryUrl(bak, cloudName) {

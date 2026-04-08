@@ -1368,6 +1368,9 @@ export function toAdListItemDto(ad) {
 }
 
 function toMapPointDto(row) {
+    const address = [row.street_number, row.street_name, row.ward_name, row.area_name]
+        .filter(Boolean)
+        .join(', ');
     return {
         ad_id: Number(row.ad_id),
         subject: row.subject || undefined,
@@ -1375,6 +1378,11 @@ function toMapPointDto(row) {
         category: row.category != null ? String(row.category) : undefined,
         company_ad: row.company_ad === 1,
         phone: row.phone || undefined,
+        street_number: row.street_number || undefined,
+        street_name: row.street_name || undefined,
+        ward_name: row.ward_name || undefined,
+        area_name: row.area_name || undefined,
+        address: address || undefined,
         location: row.location || undefined,
         latitude: row.latitude != null ? Number(row.latitude) : undefined,
         longitude: row.longitude != null ? Number(row.longitude) : undefined,
@@ -1432,6 +1440,7 @@ export async function queryMapPointsV2(filters) {
     const orderBy = orderSqlForSort(filters.sort);
     const sql = `SELECT l.ad_id, l.subject, l.price_string, l.price,
     l.category, l.company_ad, l.phone,
+    l.street_number, l.street_name, l.ward_name, l.area_name,
     l.location, l.latitude, l.longitude
     FROM chotot_listing l ${joinSql} WHERE ${whereSql} ORDER BY ${orderBy}`;
     const [rows] = await p.execute(sql, params);
@@ -1814,6 +1823,49 @@ export async function createSqlBackupFile(outputPath) {
                 }
                 reject(new Error(`mysqldump exited with code ${code}: ${stderr.trim()}`));
             });
+        });
+    });
+}
+
+export async function restoreSqlBackupFile(inputPath) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const host = process.env.MYSQL_HOST || '127.0.0.1';
+    const port = process.env.MYSQL_PORT ? String(process.env.MYSQL_PORT) : '3306';
+    const user = process.env.MYSQL_USER || 'root';
+    const password = process.env.MYSQL_PASSWORD || '';
+    const database = process.env.MYSQL_DATABASE;
+    if (!database) throw new Error('MYSQL_DATABASE is required for restore');
+
+    const mysqlBin = process.env.MYSQL_BIN_PATH || 'mysql';
+    const args = ['--host', host, '--port', port, '--user', user, database];
+
+    await fs.promises.access(inputPath, fs.constants.R_OK);
+
+    await new Promise((resolve, reject) => {
+        const input = fs.createReadStream(inputPath, { encoding: 'utf8' });
+        const child = spawn(mysqlBin, args, {
+            env: {
+                ...process.env,
+                MYSQL_PWD: password
+            },
+            windowsHide: true
+        });
+
+        let stderr = '';
+        input.pipe(child.stdin);
+        child.stderr.on('data', (d) => {
+            stderr += d.toString();
+        });
+        child.on('error', (err) => {
+            reject(new Error(`Failed to start mysql restore: ${err.message}`));
+        });
+        child.on('close', (code) => {
+            if (code === 0) {
+                resolve();
+                return;
+            }
+            reject(new Error(`mysql restore exited with code ${code}: ${stderr.trim()}`));
         });
     });
 }

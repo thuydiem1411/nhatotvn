@@ -26,15 +26,20 @@ if (!fs.existsSync(dbBackupDir)) {
 const app = express();
 app.use(express.static("public-chotot"));
 
-const dataUpload = multer({
+const sqlUpload = multer({
     storage: multer.diskStorage({
-        destination: (_req, _file, cb) => cb(null, dataDir),
+        destination: (_req, _file, cb) => cb(null, dbBackupDir),
         filename: (_req, file, cb) => {
             // Keep original filename but normalize to avoid invalid paths.
             const safeName = path.basename(file.originalname || "").replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
-            cb(null, safeName || `upload-${Date.now()}.bin`);
+            cb(null, safeName || `upload-${Date.now()}.sql`);
         }
-    })
+    }),
+    fileFilter: (_req, file, cb) => {
+        const ext = path.extname(String(file.originalname || "")).toLowerCase();
+        if (ext !== ".sql") return cb(new Error("Only .sql file is allowed"));
+        return cb(null, true);
+    }
 });
 
 if (!chototMysql.isEnabled()) {
@@ -45,6 +50,7 @@ const CATEGORY_NAMES = {
     '1050': 'tro',
     '1020': 'nha'
 };
+const ADMIN_DB_ROUTE = "/admin/db";
 
 // fetchChotot();
 
@@ -378,9 +384,14 @@ app.get("/api/cloudinary-status", (req, res) => {
     });
 });
 
-// Admin page: list data files + upload + download
-app.get("/admin/data-files", async (_req, res) => {
+// Admin page: SQL backup manager
+app.get(ADMIN_DB_ROUTE, async (_req, res) => {
     try {
+        const messageRaw = String(_req.query.msg || "");
+        const safeMessage = messageRaw
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
         const entries = await fs.promises.readdir(dataDir, { withFileTypes: true });
         const backupEntries = await fs.promises.readdir(dbBackupDir, { withFileTypes: true });
         const files = await Promise.all(
@@ -430,7 +441,12 @@ app.get("/admin/data-files", async (_req, res) => {
   <td>${f.name}</td>
   <td>${f.size.toLocaleString("en-US")} bytes</td>
   <td>${f.mtime.toLocaleString("vi-VN")}</td>
-  <td><a href="${href}">Download</a></td>
+  <td>
+    <a href="${href}">Download</a>
+    <form action="/admin/db-backups/restore/${encodeURIComponent(f.name)}" method="post" style="display:inline;margin-left:8px;" onsubmit="return confirm('Restore database from this backup? Current DB data may be overwritten.');">
+      <button type="submit">Restore</button>
+    </form>
+  </td>
 </tr>`;
             })
             .join("\n");
@@ -452,7 +468,7 @@ app.get("/admin/data-files", async (_req, res) => {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Data Files</title>
+  <title>DB Backup Manager</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     h1 { margin-bottom: 8px; }
@@ -468,18 +484,16 @@ app.get("/admin/data-files", async (_req, res) => {
   </style>
 </head>
 <body>
-  <h1>public-chotot/data</h1>
-  <p class="muted">Upload file mới hoặc tải file hiện có. &quot;Download all&quot; tải từng file (không nén zip).</p>
-
-  <div class="card">
-    <form action="/admin/data-files/upload" method="post" enctype="multipart/form-data">
-      <input type="file" name="file" required />
-      <button type="submit">Upload</button>
-    </form>
-  </div>
+  <h1>MySQL DB Backup Manager</h1>
+  <p class="muted">Quản lý backup SQL cho MySQL: upload .sql, tạo backup mới, restore dữ liệu từ file backup.</p>
+  ${safeMessage ? `<div class="card" style="border-color:#b7eb8f;background:#f6ffed;">${safeMessage}</div>` : ""}
 
   <div class="card">
     <h3>MySQL .sql backup</h3>
+    <form action="/admin/db-backups/upload" method="post" enctype="multipart/form-data" style="margin-bottom: 10px;">
+      <input type="file" name="file" accept=".sql" required />
+      <button type="submit">Upload .sql</button>
+    </form>
     <form action="/admin/db-backups/create" method="post" style="margin-bottom: 10px;">
       <button type="submit">Backup DB now (.sql)</button>
     </form>
@@ -552,11 +566,20 @@ ${downloadAllAnchors}
     }
 });
 
-app.post("/admin/data-files/upload", dataUpload.single("file"), (req, res) => {
-    if (!req.file) {
-        return res.status(400).send("Missing file");
-    }
-    return res.redirect("/admin/data-files");
+app.post("/admin/data-files/upload", (_req, res) => {
+    return res.redirect(ADMIN_DB_ROUTE + "?msg=" + encodeURIComponent("Use /admin/db-backups/upload with .sql file instead."));
+});
+
+app.post("/admin/db-backups/upload", (req, res) => {
+    sqlUpload.single("file")(req, res, (err) => {
+        if (err) {
+            return res.status(400).send(`Upload failed: ${err?.message || err}`);
+        }
+        if (!req.file) {
+            return res.status(400).send("Missing .sql file");
+        }
+        return res.redirect(ADMIN_DB_ROUTE + "?msg=" + encodeURIComponent(`Uploaded SQL backup: ${req.file.filename}`));
+    });
 });
 
 app.post("/admin/db-backups/create", async (_req, res) => {
@@ -565,7 +588,7 @@ app.post("/admin/db-backups/create", async (_req, res) => {
         const filename = `mysql-backup-${stamp}.sql`;
         const full = path.join(dbBackupDir, filename);
         await chototMysql.createSqlBackupFile(full);
-        return res.redirect("/admin/data-files");
+        return res.redirect(ADMIN_DB_ROUTE + "?msg=" + encodeURIComponent(`Created SQL backup: ${filename}`));
     } catch (err) {
         return res.status(500).send(`Backup failed: ${err?.message || err}`);
     }
@@ -578,6 +601,20 @@ app.get("/admin/db-backups/download/:name", (req, res) => {
     const full = path.join(dbBackupDir, safeName);
     if (!fs.existsSync(full)) return res.status(404).send("Backup file not found");
     return res.download(full, safeName);
+});
+
+app.post("/admin/db-backups/restore/:name", async (req, res) => {
+    try {
+        const raw = String(req.params.name || "");
+        const safeName = path.basename(raw);
+        if (!safeName.endsWith(".sql")) return res.status(400).send("Invalid backup filename");
+        const full = path.join(dbBackupDir, safeName);
+        if (!fs.existsSync(full)) return res.status(404).send("Backup file not found");
+        await chototMysql.restoreSqlBackupFile(full);
+        return res.redirect(ADMIN_DB_ROUTE + "?msg=" + encodeURIComponent(`Restore successful from ${safeName}`));
+    } catch (err) {
+        return res.status(500).send(`Restore failed: ${err?.message || err}`);
+    }
 });
 
 app.get("/admin/data-files/download/:name", (req, res) => {
