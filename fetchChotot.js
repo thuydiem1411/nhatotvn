@@ -63,6 +63,7 @@ const areaOrder = [
     "13118"
 ];
 let areaIndex = 0;
+let crawlRunCount = 0;
 const PARAMS = {
     region_v2: "13000",
     area_v2: "13110",
@@ -358,7 +359,8 @@ async function pushAreaAlertsOnce(newAds, areaId, category) {
     }
 }
 
-async function mergeByAdId(newAds, areaId, category, freshAdsCollector = null) {
+async function mergeByAdId(newAds, areaId, category, freshAdsCollector = null, options = {}) {
+    const isFirstCrawlRun = options?.isFirstCrawlRun === true;
     // This function is now MySQL-only for existing crawl data.
     let existingAds = [];
     try {
@@ -429,9 +431,11 @@ async function mergeByAdId(newAds, areaId, category, freshAdsCollector = null) {
                 );
             }
 
+            const shouldFallbackForCurrentAd = shouldFetchNewAd || isFirstCrawlRun;
             const shouldFallback =
                 PHONE_FALLBACK_THEIA &&
                 merged.account_oid &&
+                shouldFallbackForCurrentAd &&
                 (!phoneResult?.phone || !isCallablePhone(phoneResult.phone));
             if (shouldFallback) {
                 try {
@@ -547,8 +551,9 @@ async function fetchPage(page, category) {
 }
 
 // PHASE 1: Crawl all areas (without backup)
-async function crawlAllAreas() {
+async function crawlAllAreas(isFirstCrawlRun = false) {
     console.log('\n🔄 CRAWL PHASE: Starting...');
+    console.log(`ℹ️ Crawl run #${crawlRunCount + 1} (first-run-mode=${isFirstCrawlRun})`);
     
     for (const currentArea of areaOrder) {
         PARAMS.area_v2 = currentArea;
@@ -572,7 +577,13 @@ async function crawlAllAreas() {
                 let allAds = [...(firstPage.ads || [])];
                 
                 // Save page 1 immediately
-                const merged1 = await mergeByAdId(allAds, currentArea, currentCategory, freshAdsForArea);
+                const merged1 = await mergeByAdId(
+                    allAds,
+                    currentArea,
+                    currentCategory,
+                    freshAdsForArea,
+                    { isFirstCrawlRun }
+                );
                 if (await safeWriteFile(merged1, currentArea, currentCategory)) {
                     console.log(`💾 Page 1: ${firstPage.ads?.length || 0} ads, saved => ${merged1.length} total`);
                 }
@@ -585,7 +596,13 @@ async function crawlAllAreas() {
                             allAds = [...allAds, ...pageData.ads];
                             
                             // Save after each page
-                            const merged = await mergeByAdId(allAds, currentArea, currentCategory, freshAdsForArea);
+                            const merged = await mergeByAdId(
+                                allAds,
+                                currentArea,
+                                currentCategory,
+                                freshAdsForArea,
+                                { isFirstCrawlRun }
+                            );
                             if (await safeWriteFile(merged, currentArea, currentCategory)) {
                                 console.log(`💾 Page ${page}: ${pageData.ads.length} ads, saved => ${merged.length} total`);
                             }
@@ -681,17 +698,22 @@ async function fetchAllPages() {
         }
         ensureDataDir();
         await chototMysql.ensureSchema();
+        const isFirstCrawlRun = crawlRunCount === 0;
+        let crawlCompleted = false;
         
         // Execute phases based on BACKUP_FIRST env
         if (BACKUP_FIRST) {
             // Strategy 1: BACKUP first, then CRAWL
             await backupAllAreas();
-            await crawlAllAreas();
+            await crawlAllAreas(isFirstCrawlRun);
+            crawlCompleted = true;
         } else {
             // Strategy 2: CRAWL first, then BACKUP (default)
-            await crawlAllAreas();
+            await crawlAllAreas(isFirstCrawlRun);
+            crawlCompleted = true;
             await backupAllAreas();
         }
+        if (crawlCompleted) crawlRunCount += 1;
         
         console.log(`\n🎉 Hoàn thành chu kỳ crawl + backup!`);
         countGetPhoneFailed = 0;
