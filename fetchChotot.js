@@ -187,10 +187,12 @@ async function getPhoneNumber(listId) {
         const url = `https://gateway.chotot.com/v1/public/ad-listing/phone?e=${e}`;
         const response = await axios.get(url, { timeout: 15000 });
 
-        if (response && response?.data && response?.data?.phone) {
-            countGetPhoneFailed = 0;
-            adaptivePhoneDelayMs = Math.max(0, adaptivePhoneDelayMs - PHONE_RECOVERY_STEP_MS);
-            return { phone: response.data.phone, hiddenExpired: false, ok: true };
+        // Any successful HTTP response should recover 429 streak/adaptive delay.
+        countGetPhoneFailed = 0;
+        adaptivePhoneDelayMs = Math.max(0, adaptivePhoneDelayMs - PHONE_RECOVERY_STEP_MS);
+        const rawPhone = response?.data?.phone;
+        if (rawPhone && isCallablePhone(rawPhone)) {
+            return { phone: String(rawPhone).trim(), hiddenExpired: false, ok: true };
         }
         return { phone: null, hiddenExpired: false, ok: false };
     } catch (err) {
@@ -253,8 +255,10 @@ async function fetchPhonesByAccountOid(accountOid) {
     for (const listId of listIds) {
         if (knownSource.has(Number(listId))) continue;
         const r = await getPhoneNumber(listId);
-        if (r?.phone) {
+        if (r?.phone && isCallablePhone(r.phone)) {
             entries.push({ phone: r.phone, source_ad_id: listId });
+            // We only need the first valid phone for fallback usage.
+            break;
         }
         await new Promise((res) => setTimeout(res, 160));
     }
