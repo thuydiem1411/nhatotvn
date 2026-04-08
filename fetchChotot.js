@@ -32,6 +32,10 @@ const BACKUP_FIRST = (process.env.BACKUP_FIRST ?? 'false').toLowerCase() === 'tr
 const PHONE_FALLBACK_THEIA =
     (process.env.PHONE_FALLBACK_THEIA ?? 'true').toLowerCase() === 'true';
 const PUSHMORE_WEBHOOK_URL = process.env.PUSHMORE_WEBHOOK_URL || '';
+const PHONE_MIN_INTERVAL_MS = Math.max(0, Number(process.env.PHONE_MIN_INTERVAL_MS) || 900);
+const PHONE_JITTER_MS = Math.max(0, Number(process.env.PHONE_JITTER_MS) || 250);
+const PHONE_429_COOLDOWN_MS = Math.max(0, Number(process.env.PHONE_429_COOLDOWN_MS) || 12000);
+const PHONE_RECOVERY_STEP_MS = Math.max(0, Number(process.env.PHONE_RECOVERY_STEP_MS) || 800);
 
 // Thứ tự area cần crawl luân phiên
 const areaOrder = [
@@ -145,6 +149,8 @@ const RSAPublicKey = {
 };
 
 let isRunning = false;
+let nextPhoneRequestAt = 0;
+let adaptivePhoneDelayMs = 0;
 
 function ensureDataDir() {
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
@@ -159,7 +165,23 @@ function encryptToE(h) {
     return encodeURIComponent(cipherB64);
 }
 
+async function sleep(ms) {
+    if (!ms || ms <= 0) return;
+    await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitBeforePhoneRequest() {
+    const now = Date.now();
+    const baseTarget = Math.max(nextPhoneRequestAt, now);
+    const adaptiveTarget = baseTarget + adaptivePhoneDelayMs;
+    const waitMs = Math.max(0, adaptiveTarget - now);
+    if (waitMs > 0) await sleep(waitMs);
+    const jitter = PHONE_JITTER_MS > 0 ? Math.floor(Math.random() * (PHONE_JITTER_MS + 1)) : 0;
+    nextPhoneRequestAt = Date.now() + PHONE_MIN_INTERVAL_MS + jitter;
+}
+
 async function getPhoneNumber(listId) {
+    await waitBeforePhoneRequest();
     try {
         const e = encryptToE(listId);
         const url = `https://gateway.chotot.com/v1/public/ad-listing/phone?e=${e}`;
@@ -167,6 +189,7 @@ async function getPhoneNumber(listId) {
 
         if (response && response?.data && response?.data?.phone) {
             countGetPhoneFailed = 0;
+            adaptivePhoneDelayMs = Math.max(0, adaptivePhoneDelayMs - PHONE_RECOVERY_STEP_MS);
             return { phone: response.data.phone, hiddenExpired: false, ok: true };
         }
         return { phone: null, hiddenExpired: false, ok: false };
@@ -174,6 +197,7 @@ async function getPhoneNumber(listId) {
         const status = err?.response?.status ?? err?.status;
         if (status === 429) {
             countGetPhoneFailed++;
+            adaptivePhoneDelayMs = Math.max(adaptivePhoneDelayMs, PHONE_429_COOLDOWN_MS);
         }
         if (status === 404 && err?.response?.data?.message?.includes(listId)) {
             return { phone: null, hiddenExpired: true, ok: false };
