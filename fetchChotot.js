@@ -363,10 +363,8 @@ async function mergeByAdId(newAds, areaId, category, freshAdsCollector = null) {
         }
         const merged = mergeNonNull(existing, ad);
 
-        // Crawl no longer has phone on this listing: clear listing.phone only (seller_phone history stays).
-        if (ad.phone == null || String(ad.phone).trim() === '') {
-            merged.phone = null;
-        }
+        // Keep existing listing.phone when crawl payload does not include phone.
+        // Phone should only change when we actually fetch a new phone value.
 
         // Add category info to ad
         merged.category = category;
@@ -522,6 +520,8 @@ async function crawlAllAreas() {
         
         for (const currentCategory of CATEGORIES) {
             try {
+                // Reset per area+category: only stop this category on 3 consecutive 429.
+                countGetPhoneFailed = 0;
                 console.log(`\n📦 Crawling area ${currentArea}, category ${currentCategory} (${CATEGORY_DISPLAY_NAMES[currentCategory]})...`);
                 const freshAdsForArea = [];
                 
