@@ -275,6 +275,7 @@ function mergeNonNull(oldObj, newObj) {
 }
 
 let countGetPhoneFailed = 0;
+let phoneRateLimitAlertSent = false;
 
 function ruleMatchesAd(rule, ad, areaId, category) {
     const adArea = Number(ad?.area_v2 ?? areaId);
@@ -428,8 +429,14 @@ async function mergeByAdId(newAds, areaId, category, freshAdsCollector = null) {
             }
             // Delay nhẹ giữa các request phone để tránh bị block
             await new Promise(resolve => setTimeout(resolve, 500));
-        } else if (countGetPhoneFailed >= 3) {
-            await sendPushmoreAlert(`❌ Bị rate limit khi lấy phone cho ad_id ${merged.ad_id}, area ${areaId}, category ${category}`);
+        }
+
+        if (countGetPhoneFailed >= 3 && !phoneRateLimitAlertSent) {
+            phoneRateLimitAlertSent = true;
+            await sendPushmoreAlert(
+                `⚠️ Phone API rate limit (429) >= 3 lần liên tiếp ở area ${areaId}, category ${category}. ` +
+                `Tạm dừng getPhone, crawl data khác vẫn tiếp tục.`
+            );
         }
 
         map.set(ad.ad_id, merged);
@@ -522,6 +529,7 @@ async function crawlAllAreas() {
             try {
                 // Reset per area+category: only stop this category on 3 consecutive 429.
                 countGetPhoneFailed = 0;
+                phoneRateLimitAlertSent = false;
                 console.log(`\n📦 Crawling area ${currentArea}, category ${currentCategory} (${CATEGORY_DISPLAY_NAMES[currentCategory]})...`);
                 const freshAdsForArea = [];
                 
