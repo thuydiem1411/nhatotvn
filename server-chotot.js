@@ -338,7 +338,8 @@ app.post("/api/sellers/:accountOid/phones/fetch", express.json(), async (req, re
 
 app.get("/api/alert-rules", async (_req, res) => {
     try {
-        const items = await chototMysql.listAlertRules();
+        const userId = _req.query.user_id != null ? Number(_req.query.user_id) : null;
+        const items = await chototMysql.listAlertRules(userId);
         return res.json({ items });
     } catch (err) {
         return res.status(500).json({ error: err?.message || String(err) });
@@ -347,7 +348,11 @@ app.get("/api/alert-rules", async (_req, res) => {
 
 app.post("/api/alert-rules", express.json(), async (req, res) => {
     try {
-        const id = await chototMysql.createAlertRule(req.body || {});
+        const body = req.body || {};
+        const id = await chototMysql.createAlertRule({
+            ...body,
+            user_id: body.user_id != null ? Number(body.user_id) : null
+        });
         return res.json({ id });
     } catch (err) {
         return res.status(500).json({ error: err?.message || String(err) });
@@ -369,6 +374,101 @@ app.delete("/api/alert-rules/:id", async (req, res) => {
         return res.json({ ok: true });
     } catch (err) {
         return res.status(500).json({ error: err?.message || String(err) });
+    }
+});
+
+app.post("/api/auth/register", express.json(), async (req, res) => {
+    try {
+        const user = await chototMysql.registerUser({
+            username: req.body?.username,
+            email: req.body?.email,
+            password: req.body?.password
+        });
+        return res.json({ user });
+    } catch (err) {
+        return res.status(400).json({ error: err?.message || String(err) });
+    }
+});
+
+app.post("/api/auth/login", express.json(), async (req, res) => {
+    try {
+        const user = await chototMysql.loginUser({
+            username: req.body?.username,
+            password: req.body?.password
+        });
+        if (!user) return res.status(401).json({ error: "Invalid username or password" });
+        return res.json({ user });
+    } catch (err) {
+        return res.status(400).json({ error: err?.message || String(err) });
+    }
+});
+
+app.get("/api/auth/me", async (req, res) => {
+    try {
+        const userId = Number(req.query.user_id);
+        if (!Number.isFinite(userId) || userId <= 0) return res.json({ user: null });
+        const user = await chototMysql.getUserById(userId);
+        return res.json({ user });
+    } catch (err) {
+        return res.status(400).json({ error: err?.message || String(err) });
+    }
+});
+
+app.get("/api/me/favorites", async (req, res) => {
+    try {
+        const userId = Number(req.query.user_id);
+        if (!Number.isFinite(userId) || userId <= 0) {
+            return res.status(400).json({ error: "Missing or invalid user_id" });
+        }
+        const items = await chototMysql.listUserFavorites(userId);
+        return res.json({ items });
+    } catch (err) {
+        return res.status(400).json({ error: err?.message || String(err) });
+    }
+});
+
+app.post("/api/me/favorites/:adId", express.json(), async (req, res) => {
+    try {
+        const userId = Number(req.body?.user_id ?? req.query.user_id);
+        const adId = Number(req.params.adId);
+        await chototMysql.addUserFavorite(userId, adId);
+        return res.json({ ok: true });
+    } catch (err) {
+        return res.status(400).json({ error: err?.message || String(err) });
+    }
+});
+
+app.delete("/api/me/favorites/:adId", async (req, res) => {
+    try {
+        const userId = Number(req.query.user_id);
+        const adId = Number(req.params.adId);
+        await chototMysql.removeUserFavorite(userId, adId);
+        return res.json({ ok: true });
+    } catch (err) {
+        return res.status(400).json({ error: err?.message || String(err) });
+    }
+});
+
+app.get("/api/me/settings/notifications", async (req, res) => {
+    try {
+        const userId = Number(req.query.user_id);
+        const settings = await chototMysql.getUserNotificationSettings(userId);
+        return res.json(settings);
+    } catch (err) {
+        return res.status(400).json({ error: err?.message || String(err) });
+    }
+});
+
+app.put("/api/me/settings/notifications/pushmore", express.json(), async (req, res) => {
+    try {
+        const userId = Number(req.body?.user_id ?? req.query.user_id);
+        await chototMysql.upsertUserPushmoreSettings(userId, {
+            webhook_url: req.body?.webhook_url,
+            is_enabled: req.body?.is_enabled
+        });
+        return res.json({ ok: true });
+    } catch (err) {
+        return res.status(400).json({ error: err?.message || String(err) });
     }
 });
 
@@ -631,6 +731,14 @@ app.get("/seller/:accountOid", (_req, res) => {
 });
 
 app.get("/alerts", (_req, res) => {
+    return res.sendFile(path.join(__dirname, "public-chotot", "index.html"));
+});
+
+app.get("/favorites", (_req, res) => {
+    return res.sendFile(path.join(__dirname, "public-chotot", "index.html"));
+});
+
+app.get("/settings", (_req, res) => {
     return res.sendFile(path.join(__dirname, "public-chotot", "index.html"));
 });
 

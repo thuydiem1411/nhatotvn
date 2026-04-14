@@ -440,12 +440,56 @@ async function ensureAlertRuleTable(conn) {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+    if (!(await columnExists(conn, 'chotot_alert_rule', 'user_id'))) {
+        await conn.query('ALTER TABLE chotot_alert_rule ADD COLUMN user_id BIGINT NULL AFTER id');
+        await conn.query('ALTER TABLE chotot_alert_rule ADD KEY idx_alert_user_id (user_id)');
+    }
     if (await columnExists(conn, 'chotot_alert_rule', 'cooldown_minutes')) {
         await conn.query('ALTER TABLE chotot_alert_rule DROP COLUMN cooldown_minutes');
     }
     if (await columnExists(conn, 'chotot_alert_rule', 'last_sent_at')) {
         await conn.query('ALTER TABLE chotot_alert_rule DROP COLUMN last_sent_at');
     }
+}
+
+async function ensureAppUserTables(conn) {
+    await conn.query(`
+    CREATE TABLE IF NOT EXISTS app_user (
+      id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      username VARCHAR(128) NOT NULL,
+      email VARCHAR(255) NULL,
+      password_plain VARCHAR(255) NOT NULL,
+      is_active TINYINT(1) NOT NULL DEFAULT 1,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_app_user_username (username),
+      UNIQUE KEY uk_app_user_email (email)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+    await conn.query(`
+    CREATE TABLE IF NOT EXISTS app_user_favorite_listing (
+      user_id BIGINT NOT NULL,
+      ad_id BIGINT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, ad_id),
+      KEY idx_favorite_ad_id (ad_id),
+      CONSTRAINT fk_favorite_user FOREIGN KEY (user_id) REFERENCES app_user (id) ON DELETE CASCADE,
+      CONSTRAINT fk_favorite_listing FOREIGN KEY (ad_id) REFERENCES chotot_listing (ad_id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+    await conn.query(`
+    CREATE TABLE IF NOT EXISTS app_user_notification_channel (
+      id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      user_id BIGINT NOT NULL,
+      channel_type VARCHAR(32) NOT NULL DEFAULT 'pushmore',
+      webhook_url TEXT NULL,
+      is_enabled TINYINT(1) NOT NULL DEFAULT 1,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_user_channel (user_id, channel_type),
+      CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES app_user (id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
 }
 
 async function migrateListingDedupSellerProfile(conn) {
@@ -489,6 +533,7 @@ export async function ensureSchema() {
         await migrateListItemTable(conn);
         await migrateDropListingHasImgBackupOkColumn(conn);
         await ensureAlertRuleTable(conn);
+        await ensureAppUserTables(conn);
     } finally {
         conn.release();
     }
@@ -535,6 +580,7 @@ function normalizeRulePayload(input) {
 function mapAlertRuleRow(row) {
     return {
         id: Number(row.id),
+        user_id: row.user_id != null ? Number(row.user_id) : null,
         name: row.name,
         enabled: row.enabled === 1,
         areas: parseJsonList(row.areas_json).map((x) => Number(x)).filter((n) => Number.isFinite(n)),
@@ -547,16 +593,27 @@ function mapAlertRuleRow(row) {
     };
 }
 
-export async function listAlertRules() {
+export async function listAlertRules(userId = null) {
     const p = getPool();
     if (!p) return [];
+    if (userId != null && Number.isFinite(Number(userId))) {
+        const [rows] = await p.execute('SELECT * FROM chotot_alert_rule WHERE user_id = ? ORDER BY id DESC', [Number(userId)]);
+        return rows.map(mapAlertRuleRow);
+    }
     const [rows] = await p.query('SELECT * FROM chotot_alert_rule ORDER BY id DESC');
     return rows.map(mapAlertRuleRow);
 }
 
-export async function getEnabledAlertRules() {
+export async function getEnabledAlertRules(userId = null) {
     const p = getPool();
     if (!p) return [];
+    if (userId != null && Number.isFinite(Number(userId))) {
+        const [rows] = await p.execute(
+            'SELECT * FROM chotot_alert_rule WHERE enabled = 1 AND user_id = ? ORDER BY id DESC',
+            [Number(userId)]
+        );
+        return rows.map(mapAlertRuleRow);
+    }
     const [rows] = await p.query('SELECT * FROM chotot_alert_rule WHERE enabled = 1 ORDER BY id DESC');
     return rows.map(mapAlertRuleRow);
 }
@@ -567,9 +624,10 @@ export async function createAlertRule(input) {
     const n = normalizeRulePayload(input);
     const [r] = await p.execute(
         `INSERT INTO chotot_alert_rule
-      (name, enabled, areas_json, wards_json, categories_json, price_min, price_max, company_mode, keyword)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (user_id, name, enabled, areas_json, wards_json, categories_json, price_min, price_max, company_mode, keyword)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
+            input?.user_id != null && Number.isFinite(Number(input.user_id)) ? Number(input.user_id) : null,
             n.name,
             n.enabled,
             n.areas_json,
@@ -611,6 +669,140 @@ export async function deleteAlertRule(id) {
     const p = getPool();
     if (!p) throw new Error('MySQL not configured');
     await p.execute('DELETE FROM chotot_alert_rule WHERE id = ?', [Number(id)]);
+}
+
+export async function registerUser({ username, email, password }) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const user = String(username || '').trim();
+    const pass = String(password || '');
+    const mail = String(email || '').trim() || null;
+    if (!user || !pass) throw new Error('username and password are required');
+    const [r] = await p.execute(
+        'INSERT INTO app_user (username, email, password_plain, is_active) VALUES (?, ?, ?, 1)',
+        [user, mail, pass]
+    );
+    return getUserById(Number(r.insertId));
+}
+
+export async function loginUser({ username, password }) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const user = String(username || '').trim();
+    const pass = String(password || '');
+    if (!user || !pass) return null;
+    const [rows] = await p.execute(
+        'SELECT id, username, email, is_active FROM app_user WHERE username = ? AND password_plain = ? LIMIT 1',
+        [user, pass]
+    );
+    if (!rows.length) return null;
+    return {
+        id: Number(rows[0].id),
+        username: rows[0].username,
+        email: rows[0].email || null,
+        is_active: rows[0].is_active === 1
+    };
+}
+
+export async function getUserById(userId) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const id = Number(userId);
+    if (!Number.isFinite(id) || id <= 0) return null;
+    const [rows] = await p.execute(
+        'SELECT id, username, email, is_active FROM app_user WHERE id = ? LIMIT 1',
+        [id]
+    );
+    if (!rows.length) return null;
+    return {
+        id: Number(rows[0].id),
+        username: rows[0].username,
+        email: rows[0].email || null,
+        is_active: rows[0].is_active === 1
+    };
+}
+
+export async function listUserFavorites(userId) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const uid = Number(userId);
+    if (!Number.isFinite(uid) || uid <= 0) return [];
+    const [rows] = await p.execute(
+        'SELECT ad_id FROM app_user_favorite_listing WHERE user_id = ? ORDER BY created_at DESC',
+        [uid]
+    );
+    const adIds = rows.map((r) => Number(r.ad_id)).filter((n) => Number.isFinite(n) && n > 0);
+    if (!adIds.length) return [];
+    const ads = await getListingsByAdIds(adIds);
+    const map = new Map(ads.map((a) => [Number(a.ad_id), a]));
+    return adIds.map((id) => map.get(id)).filter(Boolean).map(toAdListItemDto);
+}
+
+export async function addUserFavorite(userId, adId) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const uid = Number(userId);
+    const aid = Number(adId);
+    if (!Number.isFinite(uid) || uid <= 0) throw new Error('Invalid user_id');
+    if (!Number.isFinite(aid) || aid <= 0) throw new Error('Invalid ad_id');
+    await p.execute('INSERT IGNORE INTO app_user_favorite_listing (user_id, ad_id) VALUES (?, ?)', [uid, aid]);
+}
+
+export async function removeUserFavorite(userId, adId) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const uid = Number(userId);
+    const aid = Number(adId);
+    if (!Number.isFinite(uid) || uid <= 0) throw new Error('Invalid user_id');
+    if (!Number.isFinite(aid) || aid <= 0) throw new Error('Invalid ad_id');
+    await p.execute('DELETE FROM app_user_favorite_listing WHERE user_id = ? AND ad_id = ?', [uid, aid]);
+}
+
+export async function getUserNotificationSettings(userId) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const uid = Number(userId);
+    if (!Number.isFinite(uid) || uid <= 0) return { pushmore: { webhook_url: '', is_enabled: false } };
+    const [rows] = await p.execute(
+        'SELECT webhook_url, is_enabled FROM app_user_notification_channel WHERE user_id = ? AND channel_type = ? LIMIT 1',
+        [uid, 'pushmore']
+    );
+    if (!rows.length) return { pushmore: { webhook_url: '', is_enabled: false } };
+    return {
+        pushmore: {
+            webhook_url: rows[0].webhook_url || '',
+            is_enabled: rows[0].is_enabled === 1
+        }
+    };
+}
+
+export async function upsertUserPushmoreSettings(userId, { webhook_url, is_enabled }) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const uid = Number(userId);
+    if (!Number.isFinite(uid) || uid <= 0) throw new Error('Invalid user_id');
+    await p.execute(
+        `INSERT INTO app_user_notification_channel (user_id, channel_type, webhook_url, is_enabled)
+         VALUES (?, 'pushmore', ?, ?)
+         ON DUPLICATE KEY UPDATE webhook_url = VALUES(webhook_url), is_enabled = VALUES(is_enabled)`,
+        [uid, String(webhook_url || '').trim(), is_enabled === false ? 0 : 1]
+    );
+}
+
+export async function getPushmoreWebhookByUserId(userId) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const uid = Number(userId);
+    if (!Number.isFinite(uid) || uid <= 0) return '';
+    const [rows] = await p.execute(
+        `SELECT webhook_url
+         FROM app_user_notification_channel
+         WHERE user_id = ? AND channel_type = 'pushmore' AND is_enabled = 1
+         LIMIT 1`,
+        [uid]
+    );
+    if (!rows.length) return '';
+    return String(rows[0].webhook_url || '').trim();
 }
 
 /** list_kind values = JSON array keys (plan). */

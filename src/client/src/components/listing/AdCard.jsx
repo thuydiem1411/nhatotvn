@@ -41,7 +41,7 @@ function extractFilename(url) {
   return parts.length ? parts[parts.length - 1] : "";
 }
 
-export function AdCard({ ad, onOpenDetail }) {
+export function AdCard({ ad, onOpenDetail, isFavorite = false, onToggleFavorite }) {
   const backups = useMemo(() => (Array.isArray(ad.imgs_bak) ? ad.imgs_bak : []), [ad.imgs_bak]);
   const candidates = useMemo(() => buildImageCandidates(ad.images || [], backups), [ad.images, backups]);
   const backupCandidates = useMemo(() => buildImageCandidates([], backups), [backups]);
@@ -115,9 +115,24 @@ export function AdCard({ ad, onOpenDetail }) {
           <h3 className="line-clamp-2 text-sm font-semibold leading-5 text-slate-800">
             {ad.subject || "(No subject)"}
           </h3>
-          <span className="rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700">
-            #{ad.ad_id}
-          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onToggleFavorite && onToggleFavorite(ad.ad_id)}
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-sm transition ${
+                isFavorite
+                  ? "border-rose-300 bg-rose-50 text-rose-600 hover:bg-rose-100"
+                  : "border-slate-300 bg-white text-slate-500 hover:bg-slate-50"
+              }`}
+              aria-label={isFavorite ? "Unfavorite ad" : "Favorite ad"}
+              title={isFavorite ? "Bo yeu thich" : "Yeu thich"}
+            >
+              <i className={`mdi ${isFavorite ? "mdi-heart" : "mdi-heart-outline"}`} />
+            </button>
+            {/* <span className="rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700">
+              #{ad.ad_id}
+            </span> */}
+          </div>
         </div>
 
         <p className="text-lg font-bold text-rose-600">{formatPrice(ad)}</p>
@@ -157,7 +172,6 @@ export function AdCard({ ad, onOpenDetail }) {
           </span>
           {ad.size ? <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-700">{ad.size} m2</span> : null}
         </div>
-
         <button
           type="button"
           onClick={() => onOpenDetail(ad.ad_id)}

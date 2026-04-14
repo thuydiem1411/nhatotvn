@@ -325,10 +325,11 @@ function ruleMatchesAd(rule, ad, areaId, category) {
     return true;
 }
 
-async function sendPushmoreAlert(message) {
-    if (!PUSHMORE_WEBHOOK_URL) return false;
+async function sendPushmoreAlert(message, webhookUrl = '') {
+    const target = String(webhookUrl || PUSHMORE_WEBHOOK_URL || '').trim();
+    if (!target) return false;
     try {
-        await axios.post(PUSHMORE_WEBHOOK_URL, String(message), {
+        await axios.post(target, String(message), {
             headers: { "Content-Type": "text/plain; charset=utf-8" },
             timeout: 15000
         });
@@ -344,6 +345,8 @@ async function pushAreaAlertsOnce(newAds, areaId, category) {
     const rules = await chototMysql.getEnabledAlertRules();
     if (!rules.length) return;
     for (const rule of rules) {
+        const webhookUrl = rule?.user_id ? await chototMysql.getPushmoreWebhookByUserId(rule.user_id) : PUSHMORE_WEBHOOK_URL;
+        if (!webhookUrl) continue;
         const matched = newAds.filter((ad) => ruleMatchesAd(rule, ad, areaId, category));
         if (!matched.length) continue;
         const top = matched.slice(0, 20);
@@ -355,7 +358,7 @@ async function pushAreaAlertsOnce(newAds, areaId, category) {
             `[ALERT] ${rule.name}\n` +
             `area=${areaId} category=${category} matched=${matched.length}\n` +
             `${lines.join("\n")}`;
-        await sendPushmoreAlert(msg);
+        await sendPushmoreAlert(msg, webhookUrl);
     }
 }
 

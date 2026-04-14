@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { buildImageCandidates, reconstructCloudinaryUrl } from "../../utils/imageResolver.js";
 import { fetchSellerPhones } from "../../api/listingApi.js";
+import { InlineAdMap } from "../map/InlineAdMap.jsx";
 import Hls from "hls.js";
 import { Fancybox } from "@fancyapps/ui";
 import "@fancyapps/ui/dist/fancybox/fancybox.css";
@@ -116,7 +117,16 @@ function HlsVideoPlayer({ url }) {
   );
 }
 
-export function AdDetailModal({ adId, detail, loading, error, onClose, onShareCurrent }) {
+export function AdDetailModal({
+  adId,
+  detail,
+  loading,
+  error,
+  onClose,
+  onShareCurrent,
+  isFavorite = false,
+  onToggleFavorite,
+}) {
   if (!adId) return null;
 
   const imageCandidates = buildImageCandidates(detail?.images || [], detail?.imgs_bak || []);
@@ -211,6 +221,19 @@ export function AdDetailModal({ adId, detail, loading, error, onClose, onShareCu
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => onToggleFavorite && onToggleFavorite(adId)}
+              className={`inline-flex h-9 w-9 items-center justify-center rounded-full border text-base transition ${
+                isFavorite
+                  ? "border-rose-300 bg-rose-50 text-rose-600 hover:bg-rose-100"
+                  : "border-slate-300 bg-white text-slate-500 hover:bg-slate-50"
+              }`}
+              aria-label={isFavorite ? "Unfavorite ad" : "Favorite ad"}
+              title={isFavorite ? "Bo yeu thich" : "Yeu thich"}
+            >
+              <i className={`mdi ${isFavorite ? "mdi-heart" : "mdi-heart-outline"}`} />
+            </button>
+            <button
+              type="button"
               onClick={onShareCurrent}
               className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100"
             >
@@ -229,7 +252,7 @@ export function AdDetailModal({ adId, detail, loading, error, onClose, onShareCu
           <div className="grid gap-4">
             <h3 className="text-xl font-semibold text-slate-900">{detail.subject || "(No subject)"}</h3>
 
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-3">
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <p className="mb-2 text-sm font-semibold text-slate-800">Thông tin chính</p>
                 <div className="grid gap-1 text-sm text-slate-700">
@@ -294,6 +317,11 @@ export function AdDetailModal({ adId, detail, loading, error, onClose, onShareCu
                     <strong>{detail.area_name || "N/A"} / {detail.ward_name || "N/A"}</strong>
                   </p>
                 </div>
+              </section>
+
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="mb-2 text-sm font-semibold text-slate-800">Bản đồ</p>
+                <InlineAdMap ad={detail} visible />
               </section>
             </div>
 

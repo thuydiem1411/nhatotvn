@@ -16,7 +16,7 @@ function ListingSkeleton() {
   );
 }
 
-export function AdsList({ items, loading, hasMore, onLoadMore, onOpenDetail }) {
+export function AdsList({ items, loading, hasMore, onLoadMore, onOpenDetail, isFavorite, onToggleFavorite }) {
   const showSkeleton = loading && items.length === 0;
   const showEmpty = !loading && items.length === 0;
   const showOverlayLoading = loading && items.length > 0;
@@ -28,7 +28,13 @@ export function AdsList({ items, loading, hasMore, onLoadMore, onOpenDetail }) {
           ? Array.from({ length: 6 }).map((_, idx) => <ListingSkeleton key={`skeleton-${idx}`} />)
           : null}
         {items.map((ad) => (
-          <AdCard key={ad.ad_id} ad={ad} onOpenDetail={onOpenDetail} />
+          <AdCard
+            key={ad.ad_id}
+            ad={ad}
+            onOpenDetail={onOpenDetail}
+            isFavorite={isFavorite ? isFavorite(ad.ad_id) : false}
+            onToggleFavorite={onToggleFavorite}
+          />
         ))}
       </div>
       {showOverlayLoading ? (

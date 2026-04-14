@@ -8,7 +8,7 @@ import { MapPanel } from "../components/map/MapPanel.jsx";
 import { AdDetailModal } from "../components/detail/AdDetailModal.jsx";
 import { useRegionTree } from "../hooks/useRegionTree.js";
 
-export function AdsPage() {
+export function AdsPage({ isFavorite, onToggleFavorite }) {
   const { filters, setFilters, items, total, hasMore, loading, error, loadMore, refresh } = useAdsList();
   const { points, loadingMap, mapError } = useAdsMap(filters);
   const { region, areas, wards, loadingRegion, regionError } = useRegionTree(13000, filters.area_v2);
@@ -199,6 +199,8 @@ export function AdsPage() {
               hasMore={hasMore}
               onLoadMore={loadMore}
               onOpenDetail={handleSelectAd}
+              isFavorite={isFavorite}
+              onToggleFavorite={onToggleFavorite}
             />
           </div>
         ) : null}
@@ -209,6 +211,8 @@ export function AdsPage() {
         detail={detail}
         loading={loadingDetail}
         error={detailError}
+        isFavorite={selectedAdId ? isFavorite?.(selectedAdId) : false}
+        onToggleFavorite={onToggleFavorite}
         onShareCurrent={handleShareLink}
         onClose={() => setSelectedAdId(null)}
       />

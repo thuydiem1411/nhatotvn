@@ -27,7 +27,7 @@ function ruleToForm(r) {
   };
 }
 
-export function AlertsPage() {
+export function AlertsPage({ userId }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -37,6 +37,12 @@ export function AlertsPage() {
   const [wardByArea, setWardByArea] = useState(new Map());
 
   async function reload() {
+    if (!userId) {
+      setItems([]);
+      setError("Please login to manage your alert rules.");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -51,7 +57,7 @@ export function AlertsPage() {
 
   useEffect(() => {
     reload();
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     let alive = true;
@@ -86,6 +92,7 @@ export function AlertsPage() {
 
   async function submit(e) {
     e.preventDefault();
+    if (!userId) return;
     const payload = {
       name: form.name,
       enabled: !!form.enabled,
