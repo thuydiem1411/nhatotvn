@@ -125,7 +125,9 @@ export function AdDetailModal({
   onClose,
   onShareCurrent,
   isFavorite = false,
+  isDisliked = false,
   onToggleFavorite,
+  onToggleDisliked,
 }) {
   if (!adId) return null;
 
@@ -231,6 +233,19 @@ export function AdDetailModal({
               title={isFavorite ? "Bo yeu thich" : "Yeu thich"}
             >
               <i className={`mdi ${isFavorite ? "mdi-heart" : "mdi-heart-outline"}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleDisliked && onToggleDisliked(adId)}
+              className={`inline-flex h-9 w-9 items-center justify-center rounded-full border text-base transition ${
+                isDisliked
+                  ? "border-slate-400 bg-slate-200 text-slate-700 hover:bg-slate-300"
+                  : "border-slate-300 bg-white text-slate-500 hover:bg-slate-50"
+              }`}
+              aria-label={isDisliked ? "Remove disliked ad" : "Dislike ad"}
+              title={isDisliked ? "Bo khong thich" : "Khong thich"}
+            >
+              <i className={`mdi ${isDisliked ? "mdi-thumb-down" : "mdi-thumb-down-outline"}`} />
             </button>
             <button
               type="button"

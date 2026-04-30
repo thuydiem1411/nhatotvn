@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchAdsList } from "../api/listingApi.js";
 
-const DEFAULT_LIMIT = 20;
+const DEFAULT_LIMIT = 30;
 const DEFAULT_FILTERS = {
   category: "all",
   area_v2: "",
@@ -11,8 +11,14 @@ const DEFAULT_FILTERS = {
   company: "personal",
   q: "",
   only_backup: true,
+  include_disliked: false,
   sort: "newest",
 };
+
+function areFiltersEqual(a, b) {
+  const keys = Object.keys(DEFAULT_FILTERS);
+  return keys.every((key) => a?.[key] === b?.[key]);
+}
 
 function loadInitialFiltersFromUrl() {
   if (typeof window === "undefined") return DEFAULT_FILTERS;
@@ -32,6 +38,10 @@ function parseFiltersFromSearch(search) {
   if (params.get("sort")) out.sort = params.get("sort");
   if (params.has("only_backup")) {
     out.only_backup = params.get("only_backup") === "true";
+  }
+  if (params.has("include_disliked")) {
+    const raw = params.get("include_disliked");
+    out.include_disliked = raw === "1" || raw === "true";
   }
   return out;
 }
@@ -88,7 +98,12 @@ export function useAdsList() {
     if (typeof window === "undefined") return undefined;
     function handlePopState() {
       suppressUrlWriteRef.current = true;
-      setFiltersState(parseFiltersFromSearch(window.location.search));
+      const parsed = parseFiltersFromSearch(window.location.search);
+      setFiltersState((prev) => {
+        // Ignore hash/history changes that do not actually change filter state.
+        if (areFiltersEqual(prev, parsed)) return prev;
+        return parsed;
+      });
     }
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -104,6 +119,7 @@ export function useAdsList() {
         const data = await fetchAdsList({
           ...filters,
           only_backup: filters.only_backup ? "true" : "false",
+          include_disliked: filters.include_disliked ? "1" : "0",
           offset: 0,
           limit,
         });
@@ -135,6 +151,7 @@ export function useAdsList() {
       const data = await fetchAdsList({
         ...filters,
         only_backup: filters.only_backup ? "true" : "false",
+        include_disliked: filters.include_disliked ? "1" : "0",
         offset,
         limit,
       });

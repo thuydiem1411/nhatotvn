@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AdsFilterBar } from "../components/filters/AdsFilterBar.jsx";
 import { AdsList } from "../components/listing/AdsList.jsx";
 import { useAdsList } from "../hooks/useAdsList.js";
@@ -8,7 +8,7 @@ import { MapPanel } from "../components/map/MapPanel.jsx";
 import { AdDetailModal } from "../components/detail/AdDetailModal.jsx";
 import { useRegionTree } from "../hooks/useRegionTree.js";
 
-export function AdsPage({ isFavorite, onToggleFavorite }) {
+export function AdsPage({ isFavorite, isDisliked, onToggleFavorite, onToggleDisliked }) {
   const { filters, setFilters, items, total, hasMore, loading, error, loadMore, refresh } = useAdsList();
   const { points, loadingMap, mapError } = useAdsMap(filters);
   const { region, areas, wards, loadingRegion, regionError } = useRegionTree(13000, filters.area_v2);
@@ -23,9 +23,38 @@ export function AdsPage({ isFavorite, onToggleFavorite }) {
     return v === "list" || v === "map" || v === "split" ? v : "list";
   });
   const { detail, loadingDetail, detailError } = useAdDetail(selectedAdId);
+  const [hiddenDislikedIds, setHiddenDislikedIds] = useState(() => new Set());
   const handleSelectAd = useCallback((adId) => {
     setSelectedAdId(adId);
   }, []);
+  const handleToggleDisliked = useCallback(
+    async (adId) => {
+      const id = String(adId);
+      const alreadyDisliked = Boolean(isDisliked?.(adId));
+      if (!onToggleDisliked) return;
+      await onToggleDisliked(adId);
+      setHiddenDislikedIds((prev) => {
+        const next = new Set(prev);
+        // Keep modal open; only hide from list/map surface immediately.
+        if (filters.include_disliked) {
+          if (alreadyDisliked) next.delete(id);
+          return next;
+        }
+        if (alreadyDisliked) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    },
+    [filters.include_disliked, isDisliked, onToggleDisliked]
+  );
+  const visibleItems = useMemo(() => {
+    if (filters.include_disliked) return items;
+    return items.filter((ad) => !hiddenDislikedIds.has(String(ad.ad_id)));
+  }, [filters.include_disliked, hiddenDislikedIds, items]);
+  const visiblePoints = useMemo(() => {
+    if (filters.include_disliked) return points;
+    return points.filter((p) => !hiddenDislikedIds.has(String(p.ad_id)));
+  }, [filters.include_disliked, hiddenDislikedIds, points]);
   const selectedArea = areas.find((a) => String(a.area_v2) === String(filters.area_v2));
   const selectedWard = wards.find((w) => String(w.ward_id) === String(filters.ward));
 
@@ -156,6 +185,9 @@ export function AdsPage({ isFavorite, onToggleFavorite }) {
         {filters.only_backup ? (
           <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">Chỉ tin đã backup</span>
         ) : null}
+        {filters.include_disliked ? (
+          <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-medium text-slate-700">Đang bao gồm tin không thích</span>
+        ) : null}
         {filters.q ? (
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">Từ khóa: {filters.q}</span>
         ) : null}
@@ -177,7 +209,7 @@ export function AdsPage({ isFavorite, onToggleFavorite }) {
               <div className="h-[380px] animate-pulse rounded-lg border border-slate-200 bg-slate-100" />
             ) : (
               <div className="relative">
-                <MapPanel points={points} onSelectAd={handleSelectAd} />
+                <MapPanel points={visiblePoints} onSelectAd={handleSelectAd} />
                 {loadingMap && points.length > 0 ? (
                   <div className="pointer-events-none absolute inset-0 z-[500] flex items-center justify-center rounded-lg bg-white/35 backdrop-blur-[1px]">
                     <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow">
@@ -194,13 +226,15 @@ export function AdsPage({ isFavorite, onToggleFavorite }) {
         {viewMode !== "map" ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
             <AdsList
-              items={items}
+              items={visibleItems}
               loading={loading}
               hasMore={hasMore}
               onLoadMore={loadMore}
               onOpenDetail={handleSelectAd}
               isFavorite={isFavorite}
+              isDisliked={isDisliked}
               onToggleFavorite={onToggleFavorite}
+              onToggleDisliked={handleToggleDisliked}
             />
           </div>
         ) : null}
@@ -212,7 +246,9 @@ export function AdsPage({ isFavorite, onToggleFavorite }) {
         loading={loadingDetail}
         error={detailError}
         isFavorite={selectedAdId ? isFavorite?.(selectedAdId) : false}
+        isDisliked={selectedAdId ? isDisliked?.(selectedAdId) : false}
         onToggleFavorite={onToggleFavorite}
+        onToggleDisliked={handleToggleDisliked}
         onShareCurrent={handleShareLink}
         onClose={() => setSelectedAdId(null)}
       />

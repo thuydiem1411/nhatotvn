@@ -27,6 +27,7 @@ export function AdsFilterBar({ filters, onApply, areas = [], wards = [], regionN
       company: "personal",
       q: "",
       only_backup: true,
+      include_disliked: false,
       sort: "newest",
     };
     setLocal(resetValue);
@@ -155,6 +156,14 @@ export function AdsFilterBar({ filters, onApply, areas = [], wards = [], regionN
             onChange={(e) => updateField("only_backup", e.target.checked)}
           />
           Chỉ tin có backup ảnh
+        </label>
+        <label className="flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={Boolean(local.include_disliked)}
+            onChange={(e) => updateField("include_disliked", e.target.checked)}
+          />
+          Bao gồm tin không thích
         </label>
       </div>
 

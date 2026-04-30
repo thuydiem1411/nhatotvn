@@ -54,6 +54,16 @@ const ADMIN_DB_ROUTE = "/admin/db";
 
 // fetchChotot();
 
+// Start crawler cron independently from region bootstrap,
+// so crawl still runs even if region sync fails.
+const enableCronjob = process.env.ENABLE_CRONJOB === 'true';
+if (enableCronjob) {
+    console.log('🔄 Cronjob enabled - Starting Chợ Tốt crawler...');
+    fetchChotot(); // Init cron scheduler
+} else {
+    console.log('⏸️  Cronjob disabled - Skipping Chợ Tốt crawler (set ENABLE_CRONJOB=true to enable)');
+}
+
 // Khi khởi động server: đồng bộ region/area/ward vào MySQL để frontend filter dùng relationship.
 (async () => {
     try {
@@ -88,14 +98,6 @@ const ADMIN_DB_ROUTE = "/admin/db";
         await chototMysql.upsertRegionTreeFromPayload(regions, 13000);
         console.log(`✅ Region/area/ward đã đồng bộ vào MySQL`);
         
-        // 5) Khởi tạo cron job crawl Chợ Tốt sau khi regions đã sẵn sàng
-        const enableCronjob = process.env.ENABLE_CRONJOB === 'true';
-        if (enableCronjob) {
-            console.log('🔄 Cronjob enabled - Starting Chợ Tốt crawler...');
-            fetchChotot(); // Không cần await vì chỉ khởi tạo cron job
-        } else {
-            console.log('⏸️  Cronjob disabled - Skipping Chợ Tốt crawler (set ENABLE_CRONJOB=true to enable)');
-        }
     } catch (err) {
         console.error("❌ Lỗi khi khởi tạo regions/wards:", err?.message || err);
     }
@@ -449,6 +451,41 @@ app.delete("/api/me/favorites/:adId", async (req, res) => {
     }
 });
 
+app.get("/api/me/disliked", async (req, res) => {
+    try {
+        const userId = Number(req.query.user_id);
+        if (!Number.isFinite(userId) || userId <= 0) {
+            return res.status(400).json({ error: "Missing or invalid user_id" });
+        }
+        const items = await chototMysql.listUserDisliked(userId);
+        return res.json({ items });
+    } catch (err) {
+        return res.status(400).json({ error: err?.message || String(err) });
+    }
+});
+
+app.post("/api/me/disliked/:adId", express.json(), async (req, res) => {
+    try {
+        const userId = Number(req.body?.user_id ?? req.query.user_id);
+        const adId = Number(req.params.adId);
+        await chototMysql.addUserDisliked(userId, adId);
+        return res.json({ ok: true });
+    } catch (err) {
+        return res.status(400).json({ error: err?.message || String(err) });
+    }
+});
+
+app.delete("/api/me/disliked/:adId", async (req, res) => {
+    try {
+        const userId = Number(req.query.user_id);
+        const adId = Number(req.params.adId);
+        await chototMysql.removeUserDisliked(userId, adId);
+        return res.json({ ok: true });
+    } catch (err) {
+        return res.status(400).json({ error: err?.message || String(err) });
+    }
+});
+
 app.get("/api/me/settings/notifications", async (req, res) => {
     try {
         const userId = Number(req.query.user_id);
@@ -739,6 +776,10 @@ app.get("/favorites", (_req, res) => {
 });
 
 app.get("/settings", (_req, res) => {
+    return res.sendFile(path.join(__dirname, "public-chotot", "index.html"));
+});
+
+app.get("/disliked", (_req, res) => {
     return res.sendFile(path.join(__dirname, "public-chotot", "index.html"));
 });
 

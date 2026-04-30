@@ -41,7 +41,14 @@ function extractFilename(url) {
   return parts.length ? parts[parts.length - 1] : "";
 }
 
-export function AdCard({ ad, onOpenDetail, isFavorite = false, onToggleFavorite }) {
+export function AdCard({
+  ad,
+  onOpenDetail,
+  isFavorite = false,
+  isDisliked = false,
+  onToggleFavorite,
+  onToggleDisliked,
+}) {
   const backups = useMemo(() => (Array.isArray(ad.imgs_bak) ? ad.imgs_bak : []), [ad.imgs_bak]);
   const candidates = useMemo(() => buildImageCandidates(ad.images || [], backups), [ad.images, backups]);
   const backupCandidates = useMemo(() => buildImageCandidates([], backups), [backups]);
@@ -128,6 +135,19 @@ export function AdCard({ ad, onOpenDetail, isFavorite = false, onToggleFavorite 
               title={isFavorite ? "Bo yeu thich" : "Yeu thich"}
             >
               <i className={`mdi ${isFavorite ? "mdi-heart" : "mdi-heart-outline"}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleDisliked && onToggleDisliked(ad.ad_id)}
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-sm transition ${
+                isDisliked
+                  ? "border-slate-400 bg-slate-200 text-slate-700 hover:bg-slate-300"
+                  : "border-slate-300 bg-white text-slate-500 hover:bg-slate-50"
+              }`}
+              aria-label={isDisliked ? "Remove disliked ad" : "Dislike ad"}
+              title={isDisliked ? "Bo khong thich" : "Khong thich"}
+            >
+              <i className={`mdi ${isDisliked ? "mdi-thumb-down" : "mdi-thumb-down-outline"}`} />
             </button>
             {/* <span className="rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700">
               #{ad.ad_id}

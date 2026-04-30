@@ -16,7 +16,17 @@ function ListingSkeleton() {
   );
 }
 
-export function AdsList({ items, loading, hasMore, onLoadMore, onOpenDetail, isFavorite, onToggleFavorite }) {
+export function AdsList({
+  items,
+  loading,
+  hasMore,
+  onLoadMore,
+  onOpenDetail,
+  isFavorite,
+  isDisliked,
+  onToggleFavorite,
+  onToggleDisliked,
+}) {
   const showSkeleton = loading && items.length === 0;
   const showEmpty = !loading && items.length === 0;
   const showOverlayLoading = loading && items.length > 0;
@@ -33,7 +43,9 @@ export function AdsList({ items, loading, hasMore, onLoadMore, onOpenDetail, isF
             ad={ad}
             onOpenDetail={onOpenDetail}
             isFavorite={isFavorite ? isFavorite(ad.ad_id) : false}
+            isDisliked={isDisliked ? isDisliked(ad.ad_id) : false}
             onToggleFavorite={onToggleFavorite}
+            onToggleDisliked={onToggleDisliked}
           />
         ))}
       </div>

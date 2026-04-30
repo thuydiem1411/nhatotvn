@@ -3,6 +3,7 @@ import React from "react";
 const MENU_ITEMS = [
   { key: "ads", label: "Ads", href: "/" },
   { key: "favorites", label: "Favorites", href: "/favorites" },
+  { key: "disliked", label: "Disliked", href: "/disliked" },
   { key: "alerts", label: "Alerts", href: "/alerts" },
   { key: "settings", label: "Settings", href: "/settings" },
 ];

@@ -9,8 +9,18 @@ function toQueryString(params) {
   return search.toString();
 }
 
+function readCurrentUserId() {
+  const raw = window.localStorage.getItem("rl_user_id");
+  const id = Number(raw);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  return id;
+}
+
 export async function fetchAdsList(params) {
-  const query = toQueryString(params);
+  const query = toQueryString({
+    ...(params || {}),
+    user_id: readCurrentUserId(),
+  });
   const res = await fetch(`${API_BASE}/ads?${query}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch ads list (${res.status})`);
@@ -19,7 +29,10 @@ export async function fetchAdsList(params) {
 }
 
 export async function fetchAdsMapPoints(params) {
-  const query = toQueryString(params);
+  const query = toQueryString({
+    ...(params || {}),
+    user_id: readCurrentUserId(),
+  });
   const res = await fetch(`${API_BASE}/ads/map?${query}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch map points (${res.status})`);
@@ -154,6 +167,31 @@ export async function removeFavorite(userId, adId) {
     { method: "DELETE" }
   );
   if (!res.ok) throw new Error(`Failed to remove favorite (${res.status})`);
+  return res.json();
+}
+
+export async function fetchMyDisliked(userId) {
+  const res = await fetch(`${API_BASE}/me/disliked?user_id=${encodeURIComponent(String(userId || ""))}`);
+  if (!res.ok) throw new Error(`Failed to fetch disliked (${res.status})`);
+  return res.json();
+}
+
+export async function addDisliked(userId, adId) {
+  const res = await fetch(`${API_BASE}/me/disliked/${encodeURIComponent(String(adId))}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: Number(userId) }),
+  });
+  if (!res.ok) throw new Error(`Failed to add disliked (${res.status})`);
+  return res.json();
+}
+
+export async function removeDisliked(userId, adId) {
+  const res = await fetch(
+    `${API_BASE}/me/disliked/${encodeURIComponent(String(adId))}?user_id=${encodeURIComponent(String(userId || ""))}`,
+    { method: "DELETE" }
+  );
+  if (!res.ok) throw new Error(`Failed to remove disliked (${res.status})`);
   return res.json();
 }
 

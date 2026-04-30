@@ -467,16 +467,28 @@ async function ensureAppUserTables(conn) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
     await conn.query(`
-    CREATE TABLE IF NOT EXISTS app_user_favorite_listing (
+    CREATE TABLE IF NOT EXISTS app_user_listing_preference (
       user_id BIGINT NOT NULL,
       ad_id BIGINT NOT NULL,
+      preference_type VARCHAR(16) NOT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (user_id, ad_id),
-      KEY idx_favorite_ad_id (ad_id),
-      CONSTRAINT fk_favorite_user FOREIGN KEY (user_id) REFERENCES app_user (id) ON DELETE CASCADE,
-      CONSTRAINT fk_favorite_listing FOREIGN KEY (ad_id) REFERENCES chotot_listing (ad_id) ON DELETE CASCADE
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, ad_id, preference_type),
+      KEY idx_pref_user_type_created (user_id, preference_type, created_at),
+      KEY idx_pref_user_ad (user_id, ad_id),
+      KEY idx_pref_ad_id (ad_id),
+      CONSTRAINT fk_pref_user FOREIGN KEY (user_id) REFERENCES app_user (id) ON DELETE CASCADE,
+      CONSTRAINT fk_pref_listing FOREIGN KEY (ad_id) REFERENCES chotot_listing (ad_id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+    // Data migration from legacy favorites table (if it exists) into preference table.
+    await conn.query(`
+      INSERT IGNORE INTO app_user_listing_preference (user_id, ad_id, preference_type, created_at, updated_at)
+      SELECT user_id, ad_id, 'favorite', created_at, created_at
+      FROM app_user_favorite_listing
+    `).catch(() => {});
+    // Cleanup legacy table after successful migration to unified preference model.
+    await conn.query('DROP TABLE IF EXISTS app_user_favorite_listing');
     await conn.query(`
     CREATE TABLE IF NOT EXISTS app_user_notification_channel (
       id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -728,7 +740,10 @@ export async function listUserFavorites(userId) {
     const uid = Number(userId);
     if (!Number.isFinite(uid) || uid <= 0) return [];
     const [rows] = await p.execute(
-        'SELECT ad_id FROM app_user_favorite_listing WHERE user_id = ? ORDER BY created_at DESC',
+        `SELECT ad_id
+         FROM app_user_listing_preference
+         WHERE user_id = ? AND preference_type = 'favorite'
+         ORDER BY created_at DESC`,
         [uid]
     );
     const adIds = rows.map((r) => Number(r.ad_id)).filter((n) => Number.isFinite(n) && n > 0);
@@ -745,7 +760,12 @@ export async function addUserFavorite(userId, adId) {
     const aid = Number(adId);
     if (!Number.isFinite(uid) || uid <= 0) throw new Error('Invalid user_id');
     if (!Number.isFinite(aid) || aid <= 0) throw new Error('Invalid ad_id');
-    await p.execute('INSERT IGNORE INTO app_user_favorite_listing (user_id, ad_id) VALUES (?, ?)', [uid, aid]);
+    await p.execute(
+        `INSERT INTO app_user_listing_preference (user_id, ad_id, preference_type)
+         VALUES (?, ?, 'favorite')
+         ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP`,
+        [uid, aid]
+    );
 }
 
 export async function removeUserFavorite(userId, adId) {
@@ -755,7 +775,59 @@ export async function removeUserFavorite(userId, adId) {
     const aid = Number(adId);
     if (!Number.isFinite(uid) || uid <= 0) throw new Error('Invalid user_id');
     if (!Number.isFinite(aid) || aid <= 0) throw new Error('Invalid ad_id');
-    await p.execute('DELETE FROM app_user_favorite_listing WHERE user_id = ? AND ad_id = ?', [uid, aid]);
+    await p.execute(
+        `DELETE FROM app_user_listing_preference
+         WHERE user_id = ? AND ad_id = ? AND preference_type = 'favorite'`,
+        [uid, aid]
+    );
+}
+
+export async function listUserDisliked(userId) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const uid = Number(userId);
+    if (!Number.isFinite(uid) || uid <= 0) return [];
+    const [rows] = await p.execute(
+        `SELECT ad_id
+         FROM app_user_listing_preference
+         WHERE user_id = ? AND preference_type = 'disliked'
+         ORDER BY created_at DESC`,
+        [uid]
+    );
+    const adIds = rows.map((r) => Number(r.ad_id)).filter((n) => Number.isFinite(n) && n > 0);
+    if (!adIds.length) return [];
+    const ads = await getListingsByAdIds(adIds);
+    const map = new Map(ads.map((a) => [Number(a.ad_id), a]));
+    return adIds.map((id) => map.get(id)).filter(Boolean).map(toAdListItemDto);
+}
+
+export async function addUserDisliked(userId, adId) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const uid = Number(userId);
+    const aid = Number(adId);
+    if (!Number.isFinite(uid) || uid <= 0) throw new Error('Invalid user_id');
+    if (!Number.isFinite(aid) || aid <= 0) throw new Error('Invalid ad_id');
+    await p.execute(
+        `INSERT INTO app_user_listing_preference (user_id, ad_id, preference_type)
+         VALUES (?, ?, 'disliked')
+         ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP`,
+        [uid, aid]
+    );
+}
+
+export async function removeUserDisliked(userId, adId) {
+    const p = getPool();
+    if (!p) throw new Error('MySQL not configured');
+    const uid = Number(userId);
+    const aid = Number(adId);
+    if (!Number.isFinite(uid) || uid <= 0) throw new Error('Invalid user_id');
+    if (!Number.isFinite(aid) || aid <= 0) throw new Error('Invalid ad_id');
+    await p.execute(
+        `DELETE FROM app_user_listing_preference
+         WHERE user_id = ? AND ad_id = ? AND preference_type = 'disliked'`,
+        [uid, aid]
+    );
 }
 
 export async function getUserNotificationSettings(userId) {
@@ -1484,6 +1556,16 @@ function buildAdsFilterClause(filters) {
     } else if (filters.company === 'personal') {
         parts.push('l.company_ad = 0');
     }
+    if (!filters.include_disliked && Number.isFinite(Number(filters.user_id)) && Number(filters.user_id) > 0) {
+        parts.push(
+            `NOT EXISTS (
+                SELECT 1
+                FROM app_user_listing_preference p
+                WHERE p.user_id = ? AND p.ad_id = l.ad_id AND p.preference_type = 'disliked'
+            )`
+        );
+        params.push(Number(filters.user_id));
+    }
 
     const q = (filters.search_q || '').trim();
     if (q.length >= MIN_SEARCH_LEN) {
@@ -1665,6 +1747,8 @@ export function parseAdsFilterFromQuery(q) {
         price_min: pm != null && pm !== '' ? Number(pm) : null,
         price_max: px != null && px !== '' ? Number(px) : null,
         company: q.company || 'all',
+        user_id: q.user_id != null && q.user_id !== '' ? Number(q.user_id) : null,
+        include_disliked: q.include_disliked === '1' || q.include_disliked === 'true',
         search_q: (q.q || '').trim(),
         sort: q.sort || 'newest',
         offset: parseInt(String(q.offset || '0'), 10) || 0,

@@ -3,6 +3,7 @@ import { AdsPage } from "./pages/AdsPage.jsx";
 import { SellerProfilePage } from "./pages/SellerProfilePage.jsx";
 import { AlertsPage } from "./pages/AlertsPage.jsx";
 import { FavoritesPage } from "./pages/FavoritesPage.jsx";
+import { DislikedPage } from "./pages/DislikedPage.jsx";
 import { SettingsPage } from "./pages/SettingsPage.jsx";
 import { AppShell } from "./components/layout/AppShell.jsx";
 import { useSimpleUser } from "./hooks/useSimpleUser.js";
@@ -29,9 +30,14 @@ function isSettingsPath() {
   return /^\/settings\/?$/.test(window.location.pathname);
 }
 
+function isDislikedPath() {
+  if (typeof window === "undefined") return false;
+  return /^\/disliked\/?$/.test(window.location.pathname);
+}
+
 export function App() {
   const { user, login, register, logout } = useSimpleUser();
-  const { favoriteItems, isFavorite, toggleFavorite } = useFavorites(user?.id);
+  const { favoriteItems, dislikedItems, isFavorite, isDisliked, toggleFavorite, toggleDisliked } = useFavorites(user?.id);
   const currentPath = typeof window === "undefined" ? "/" : window.location.pathname;
 
   if (isAlertsPath()) {
@@ -44,7 +50,13 @@ export function App() {
   if (isFavoritesPath()) {
     return (
       <AppShell currentPath={currentPath} user={user} onLogout={logout}>
-        <FavoritesPage favoriteItems={favoriteItems} isFavorite={isFavorite} onToggleFavorite={toggleFavorite} />
+        <FavoritesPage
+          favoriteItems={favoriteItems}
+          isFavorite={isFavorite}
+          isDisliked={isDisliked}
+          onToggleFavorite={toggleFavorite}
+          onToggleDisliked={toggleDisliked}
+        />
       </AppShell>
     );
   }
@@ -52,6 +64,19 @@ export function App() {
     return (
       <AppShell currentPath={currentPath} user={user} onLogout={logout}>
         <SettingsPage user={user} onLogin={login} onRegister={register} />
+      </AppShell>
+    );
+  }
+  if (isDislikedPath()) {
+    return (
+      <AppShell currentPath={currentPath} user={user} onLogout={logout}>
+        <DislikedPage
+          dislikedItems={dislikedItems}
+          isFavorite={isFavorite}
+          isDisliked={isDisliked}
+          onToggleFavorite={toggleFavorite}
+          onToggleDisliked={toggleDisliked}
+        />
       </AppShell>
     );
   }
@@ -67,7 +92,12 @@ export function App() {
   }
   return (
     <AppShell currentPath={currentPath} user={user} onLogout={logout}>
-      <AdsPage isFavorite={isFavorite} onToggleFavorite={toggleFavorite} />
+      <AdsPage
+        isFavorite={isFavorite}
+        isDisliked={isDisliked}
+        onToggleFavorite={toggleFavorite}
+        onToggleDisliked={toggleDisliked}
+      />
     </AppShell>
   );
 }

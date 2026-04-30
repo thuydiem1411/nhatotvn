@@ -152,6 +152,8 @@ const RSAPublicKey = {
 let isRunning = false;
 let nextPhoneRequestAt = 0;
 let adaptivePhoneDelayMs = 0;
+// Track ads that failed phone fetch in current run to avoid retry spam.
+let phoneFailedAdIdsInRun = new Set();
 
 function ensureDataDir() {
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
@@ -410,12 +412,14 @@ async function mergeByAdId(newAds, areaId, category, freshAdsCollector = null, o
         const hasExisting = Boolean(existing?.ad_id);
         const shouldRefreshExistingPhone = hasExisting && (!existing?.phone || hasPlaceholderPhoneText(existing?.phone));
         const shouldFetchNewAd = !hasExisting && !merged.phone;
+        const alreadyFailedInRun = phoneFailedAdIdsInRun.has(String(merged.ad_id));
         const shouldTryFetchPhone =
             !merged.company_ad &&
             !merged.phone_hidden &&
             merged.list_id &&
             countGetPhoneFailed < 3 &&
-            (shouldFetchNewAd || shouldRefreshExistingPhone);
+            (shouldFetchNewAd || shouldRefreshExistingPhone) &&
+            !alreadyFailedInRun;
         if (shouldTryFetchPhone) {
             const phoneResult = await getPhoneNumber(merged.list_id);
             if (phoneResult?.phone) {
@@ -460,6 +464,7 @@ async function mergeByAdId(newAds, areaId, category, freshAdsCollector = null, o
                     );
                 }
             } else if (!phoneResult?.phone) {
+                phoneFailedAdIdsInRun.add(String(merged.ad_id));
                 console.log(`❌ Không lấy được phone cho ad_id ${merged.ad_id}, area ${areaId}, category ${category}`);
             }
             // Delay nhẹ giữa các request phone để tránh bị block
@@ -696,6 +701,7 @@ async function fetchAllPages() {
     try {
         // Reset account runtime flags so each run starts fresh.
         resetCloudinaryAccountsState();
+        phoneFailedAdIdsInRun = new Set();
         if (!chototMysql.isEnabled()) {
             throw new Error("MySQL must be enabled. JSON runtime mode has been removed.");
         }

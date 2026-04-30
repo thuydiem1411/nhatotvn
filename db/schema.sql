@@ -184,14 +184,18 @@ CREATE TABLE IF NOT EXISTS app_user (
   UNIQUE KEY uk_app_user_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS app_user_favorite_listing (
+CREATE TABLE IF NOT EXISTS app_user_listing_preference (
   user_id BIGINT NOT NULL,
   ad_id BIGINT NOT NULL,
+  preference_type VARCHAR(16) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (user_id, ad_id),
-  KEY idx_favorite_ad_id (ad_id),
-  CONSTRAINT fk_favorite_user FOREIGN KEY (user_id) REFERENCES app_user (id) ON DELETE CASCADE,
-  CONSTRAINT fk_favorite_listing FOREIGN KEY (ad_id) REFERENCES chotot_listing (ad_id) ON DELETE CASCADE
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, ad_id, preference_type),
+  KEY idx_pref_user_type_created (user_id, preference_type, created_at),
+  KEY idx_pref_user_ad (user_id, ad_id),
+  KEY idx_pref_ad_id (ad_id),
+  CONSTRAINT fk_pref_user FOREIGN KEY (user_id) REFERENCES app_user (id) ON DELETE CASCADE,
+  CONSTRAINT fk_pref_listing FOREIGN KEY (ad_id) REFERENCES chotot_listing (ad_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS app_user_notification_channel (
