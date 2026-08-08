@@ -11,17 +11,21 @@ export default defineConfig({
   },
   server: {
     host: true,
-    allowedHosts: [".nport.link"],
-    port: 5173,
+    // Allow any tunnel host (ngrok / nport / etc.). Restricting this often looks like CORS in the browser.
+    allowedHosts: true,
+    port: 5174,
+    cors: true,
     proxy: {
       "/api": {
         target: "http://127.0.0.1:3009",
         changeOrigin: true,
+        secure: false,
       },
       // Admin HTML (data-files list/upload/download) is served by server-chotot.js, not Vite.
       "/admin": {
         target: "http://127.0.0.1:3009",
         changeOrigin: true,
+        secure: false,
       },
     },
   },
